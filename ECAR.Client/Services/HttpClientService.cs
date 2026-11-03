@@ -1672,10 +1672,8 @@ public class HttpClientService
             ("idEquipos", filtro.IdEquipos), ("idUsuarios", filtro.IdUsuarios), ("estados", filtro.Estados),
             ("criticidades", filtro.Criticidades), ("sedes", filtro.Sedes));
 
-    // --- Cuentas (endpoints 23 a 26; el login sigue en AuthService) ---
-
-    public Task<ApiResponse<bool>> CambiarPasswordAsync(CambiarPasswordDto cambio) =>
-        EnviarAsync<bool>(HttpMethod.Post, "api/auth/cambiar-password", cambio);
+    // --- Cuentas (el login sigue en AuthService). Sin cambiar ni restablecer contraseñas desde el 03/11/2026:
+    // lo hará una API externa. Queda el desbloqueo por el Administrador. ---
 
     /// <summary>Política de contraseñas y minutos de inactividad. Es anónimo.</summary>
     public Task<ApiResponse<PoliticaSeguridadDto>> GetPoliticaSeguridadAsync() =>
@@ -1687,10 +1685,6 @@ public class HttpClientService
     /// </summary>
     public Task<ApiResponse<bool>> CerrarSesionAsync(bool porInactividad = false) =>
         EnviarAsync<bool>(HttpMethod.Post, ConFiltros("api/auth/logout", ("porInactividad", porInactividad)));
-
-    public Task<ApiResponse<PasswordTemporalDto>> RestablecerPasswordAsync(long idUsuario, string motivo) =>
-        EnviarAsync<PasswordTemporalDto>(HttpMethod.Post, $"api/usuarios/{idUsuario}/restablecer-password",
-            new MotivoDto { Motivo = motivo });
 
     public Task<ApiResponse<bool>> DesbloquearUsuarioAsync(long idUsuario, string motivo) =>
         EnviarAsync<bool>(HttpMethod.Post, $"api/usuarios/{idUsuario}/desbloquear", new MotivoDto { Motivo = motivo });

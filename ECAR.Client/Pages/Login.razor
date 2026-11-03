@@ -29,29 +29,7 @@
                 Su sesión expiró. Inicie sesión de nuevo para volver a la página en la que estaba.
             </MudAlert>
         }
-        else if (PasswordCambiada)
-        {
-            <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
-                Su contraseña se cambió correctamente. Inicie sesión con la nueva contraseña.
-            </MudAlert>
-        }
 
-        @if (_diasParaVencer is { } diasParaVencer)
-        {
-            @* Fase 4 (Parte 11 §11.300(b)): la contraseña está por vencer; se avisa antes de entrar. *@
-            <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true">
-                @(diasParaVencer <= 0
-                    ? "Su contraseña vence hoy."
-                    : $"Su contraseña vence en {diasParaVencer} día(s).")
-                Le recomendamos cambiarla ahora.
-            </MudAlert>
-            <div class="d-flex gap-3">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CambiarAhora">Cambiar ahora</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="ContinuarAlDestino">Continuar</MudButton>
-            </div>
-        }
-        else
-        {
         <MudForm @ref="form" Class="login-form">
             @* Immediate: el valor ya está enlazado cuando se pulsa Enter. *@
             <MudTextField T="string" Label="Correo o Usuario AD" @bind-Value="loginDto.CorreoOrUsuarioAD" Variant="Variant.Outlined" Required="false" RequiredError="El correo o usuario AD es requerido" Class="mb-3" AdornmentIcon="@Icons.Material.Filled.Email" Adornment="Adornment.Start"
@@ -82,7 +60,6 @@
                 </MudAlert>
             }
         </MudForm>
-        }
 
         <MudDivider Class="my-4" />
 
@@ -195,17 +172,6 @@
 
     private bool CerradaPorInactividad => Inactividad == "1";
 
-    // La pone CambiarPassword.razor al terminar: el servidor invalida el token anterior.
-    [SupplyParameterFromQuery(Name = "passwordCambiada")]
-    [Parameter]
-    public string? PasswordCambiadaParam { get; set; }
-
-    private bool PasswordCambiada => PasswordCambiadaParam == "1";
-
-    // Días que faltan para que caduque la contraseña, solo si faltan DiasAvisoVencimiento o menos.
-    private const int DiasAvisoVencimiento = 10;
-    private int? _diasParaVencer;
-
     /// <summary>
     /// Destino tras iniciar sesión. Solo se acepta una ruta de esta misma aplicación: si se
     /// aceptara cualquier URL, un enlace como /login?returnUrl=https://sitio-falso pondría al
@@ -238,15 +204,6 @@
         return "/" + ruta;
     }
 
-    private void CambiarAhora()
-    {
-        var destino = DestinoSeguro();
-        var url = "/cambiar-password" + (destino == "/" ? string.Empty : "?returnUrl=" + Uri.EscapeDataString(destino));
-        NavigationManager.NavigateTo(url, forceLoad: true);
-    }
-
-    private void ContinuarAlDestino() => NavigationManager.NavigateTo(DestinoSeguro(), forceLoad: true);
-
     private async Task EnterIniciaSesion(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or "NumpadEnter" && !isLoading)
@@ -272,7 +229,7 @@
             // cuenta bloqueada con 423, etc.) y se muestra tal cual.
             var respuesta = await AuthService.LoginConMensajeAsync(loginDto);
 
-            if (respuesta.Success && respuesta.Data is { } result)
+            if (respuesta.Success && respuesta.Data is not null)
             {
                 // El reloj de inactividad arranca ahora: si no, la última actividad guardada
                 // podría ser de hace horas y la sesión se cerraría nada más entrar.
@@ -285,24 +242,7 @@
                     // Sin actividad.js no hay cierre por inactividad; el login sigue.
                 }
 
-                // Contraseña temporal o caducada: se cambia antes de entrar (Fase 4, §11.300(b)).
-                if (result.DebeCambiarPassword)
-                {
-                    CambiarAhora();
-                    return;
-                }
-
-                // Contraseña por vencer: se avisa y el usuario decide si la cambia ahora.
-                if (result.PasswordExpiraEl is { } expira)
-                {
-                    var dias = (int)Math.Ceiling((expira - DateTime.UtcNow).TotalDays);
-                    if (dias <= DiasAvisoVencimiento)
-                    {
-                        _diasParaVencer = Math.Max(dias, 0);
-                        return;
-                    }
-                }
-
+                // Sin cambio de contraseña al entrar desde el 03/11/2026: lo administra una API externa.
                 // Login exitoso. forceLoad recarga el layout para reflejar roles y menú.
                 // Si se llegó aquí desde una página protegida, se vuelve a ella.
                 NavigationManager.NavigateTo(DestinoSeguro(), forceLoad: true);

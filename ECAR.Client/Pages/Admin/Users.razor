@@ -71,11 +71,6 @@
                                 <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled"
                                     Text="@($"Bloqueada hasta {context.BloqueadoHasta!.Value.ToLocalTime():HH:mm}")" />
                             }
-                            @if (context.DebeCambiarPassword)
-                            {
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined"
-                                    Text="Contraseña temporal" title="Debe cambiarla al entrar" />
-                            }
                         </MudTd>
                         <MudTd DataLabel="Acciones" Class="col-acciones">
                             <div class="d-flex flex-wrap justify-end gap-1">
@@ -89,11 +84,8 @@
                                            OnClick="() => DeleteUser(context)" Class="action-button">
                                     @(context.Activo ? "Desactivar" : "Activar")
                                 </MudButton>
-                                @* Fase 4 (Parte 11 §11.300): contraseña temporal y desbloqueo, ambos con motivo. *@
-                                <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" 
-                                    StartIcon="@Icons.Material.Filled.LockReset" OnClick="() => RestablecerPassword(context)" Class="action-button">
-                                    Restablecer contraseña
-                                </MudButton>
+                                @* Parte 11 §11.300(d): desbloqueo con motivo. Desde el 03/11/2026 no se restablecen
+                                   contraseñas aquí: lo hará una API externa. *@
                                 @if (EstaBloqueado(context))
                                 {
                                     <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
@@ -221,31 +213,6 @@
         if (result is not null && !result.Canceled)
         {
             await LoadDataAsync();
-        }
-    }
-
-    // Endpoint 25: el servidor genera una contraseña temporal que solo se ve esta vez; el usuario
-    // debe cambiarla al entrar. El motivo queda en la auditoría.
-    private async Task RestablecerPassword(UsuarioDto usuario)
-    {
-        var motivo = await MotivoDialog.PedirAsync(DialogService, "Restablecer contraseña",
-            $"Se generará una contraseña temporal para '{usuario.Nombre}'. El usuario deberá cambiarla al iniciar sesión.",
-            "Restablecer", Color.Warning);
-        if (motivo is null)
-        {
-            return;
-        }
-
-        var respuesta = await HttpClientService.RestablecerPasswordAsync(usuario.IdUsuario, motivo);
-        if (respuesta.Success && respuesta.Data is { } temporal)
-        {
-            await PasswordTemporalDialog.MostrarAsync(DialogService, usuario.Nombre, temporal.PasswordTemporal);
-            // Restablecer también desbloquea y marca «Contraseña temporal»: se recarga la lista.
-            await LoadDataAsync();
-        }
-        else
-        {
-            Snackbar.Add(respuesta.Message ?? "No se pudo completar la accion", Severity.Error);
         }
     }
 

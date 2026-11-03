@@ -34,7 +34,7 @@ body {
 }
 
 /* Botones (Fase 5, F-01). Solo se pintan los botones con relleno: azules, salvo Color.Error en rojo
-   (eliminar, desactivar, anular, retirar) y Color.Warning en naranja (restablecer, continuar). Antes
+   (eliminar, desactivar, anular, retirar) y Color.Warning en naranja (desbloquear, continuar). Antes
    se pintaba todo .mud-button-root, y con él los botones de ícono, los interruptores y los adornos de
    los campos (ojo, calendario, X), que salían como círculos azules grandes; y los Outlined y Text
    quedaban con su texto sobre azul, ilegibles. */

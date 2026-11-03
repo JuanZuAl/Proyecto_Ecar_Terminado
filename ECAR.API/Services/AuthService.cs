@@ -18,9 +18,6 @@ public class AuthService : IAuthService
 {
     public const string OperacionLogin = "InicioSesion";
     public const string OperacionFirma = "Firma";
-    public const string OperacionCambioPassword = "CambioPassword";
-
-    public const string ClaimCambioPasswordPendiente = "ecar_cambio_password";
 
     private readonly ECARDbContext _context;
     private readonly IConfiguration _configuration;
@@ -62,23 +59,17 @@ public class AuthService : IAuthService
             return null;
         }
 
-        var autenticacion = await VerificarAsync(usuario, loginDto.Password, OperacionLogin, soloLocal: false);
+        var autenticacion = await VerificarAsync(usuario, loginDto.Password, OperacionLogin);
         if (autenticacion == MetodoAutenticacion.Ninguno)
         {
             return null;
         }
 
-        var esLocal = autenticacion == MetodoAutenticacion.Local;
-        if (esLocal && usuario.FechaCambioPassword == null)
-        {
-            usuario.FechaCambioPassword = DateTime.UtcNow;
-        }
-
-        var debeCambiarPassword = esLocal && (usuario.DebeCambiarPassword || _politica.EstaCaducada(usuario));
-
+        // Desde el 03/11/2026 no se obliga a cambiar la contraseña al entrar (ni temporal ni caducada): el cambio
+        // periódico y el restablecimiento los hará una API externa. DebeCambiarPassword de la base ya no se usa.
         usuario.UltimoAcceso = DateTime.UtcNow;
         _context.RegistrarEvento(AuditoriaAcciones.LoginExitoso, usuario.IdUsuario,
-            new { Metodo = autenticacion.ToString(), DebeCambiarPassword = debeCambiarPassword },
+            new { Metodo = autenticacion.ToString() },
             usuario: Describir(usuario), idUsuario: usuario.IdUsuario);
         await _context.SaveChangesAsync();
 
@@ -86,7 +77,7 @@ public class AuthService : IAuthService
         var roles = usuario.UsuarioRoles.Select(ur => ur.Rol.Nombre).ToList();
 
         // Crear el JWT que se devuelve al cliente.
-        var token = GenerateJwtToken(usuario, roles, debeCambiarPassword);
+        var token = GenerateJwtToken(usuario, roles);
 
         return new LoginResponseDto
         {
@@ -94,9 +85,7 @@ public class AuthService : IAuthService
             Correo = usuario.Correo,
             Nombre = usuario.Nombre,
             Roles = roles,
-            Expiration = DateTime.UtcNow.AddHours(GetJwtExpirationHours()),
-            DebeCambiarPassword = debeCambiarPassword,
-            PasswordExpiraEl = esLocal ? _politica.CalcularExpiracion(usuario) : null
+            Expiration = DateTime.UtcNow.AddHours(GetJwtExpirationHours())
         };
     }
 
@@ -108,44 +97,7 @@ public class AuthService : IAuthService
             return false;
         }
 
-        return await VerificarAsync(usuario, password, operacion, soloLocal: false) != MetodoAutenticacion.Ninguno;
-    }
-
-    public async Task<List<string>> CambiarPasswordAsync(long idUsuario, CambiarPasswordDto cambio)
-    {
-        var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.IdUsuario == idUsuario);
-        if (usuario == null || !usuario.Activo)
-        {
-            return ["Usuario no encontrado"];
-        }
-
-        if (string.IsNullOrWhiteSpace(usuario.PasswordHash))
-        {
-            return ["La contraseña de esta cuenta la administra Active Directory"];
-        }
-
-        if (await VerificarAsync(usuario, cambio.Actual, OperacionCambioPassword, soloLocal: true) ==
-            MetodoAutenticacion.Ninguno)
-        {
-            return ["La contraseña actual es incorrecta"];
-        }
-
-        var errores = _politica.Validar(cambio.Nueva);
-        if (errores.Count > 0)
-        {
-            return errores;
-        }
-
-        if (await _politica.EsRecienteAsync(_context, usuario, cambio.Nueva))
-        {
-            return [$"La nueva contraseña no puede ser la actual ni ninguna de las últimas {_politica.Opciones.PasswordsRecordadas}"];
-        }
-
-        _politica.Establecer(_context, usuario, cambio.Nueva, esTemporal: false);
-        _context.RegistrarEvento(AuditoriaAcciones.CambioPassword, usuario.IdUsuario);
-
-        await _context.SaveChangesAsync();
-        return [];
+        return await VerificarAsync(usuario, password, operacion) != MetodoAutenticacion.Ninguno;
     }
 
     public Task<bool> ValidateTokenAsync(string token)
@@ -176,8 +128,7 @@ public class AuthService : IAuthService
         }
     }
 
-    private async Task<MetodoAutenticacion> VerificarAsync(Usuario usuario, string? password, string operacion,
-        bool soloLocal)
+    private async Task<MetodoAutenticacion> VerificarAsync(Usuario usuario, string? password, string operacion)
     {
         var ahora = DateTime.UtcNow;
         if (usuario.BloqueadoHasta is { } bloqueadoHasta && bloqueadoHasta > ahora)
@@ -188,7 +139,7 @@ public class AuthService : IAuthService
             throw new CuentaBloqueadaException(bloqueadoHasta);
         }
 
-        var metodo = await AutenticarAsync(usuario, password ?? string.Empty, soloLocal);
+        var metodo = await AutenticarAsync(usuario, password ?? string.Empty);
         if (metodo != MetodoAutenticacion.Ninguno)
         {
             if (usuario.IntentosFallidos != 0 || usuario.BloqueadoHasta != null)
@@ -222,11 +173,11 @@ public class AuthService : IAuthService
         throw new CuentaBloqueadaException(usuario.BloqueadoHasta.Value);
     }
 
-    private async Task<MetodoAutenticacion> AutenticarAsync(Usuario usuario, string password, bool soloLocal)
+    private async Task<MetodoAutenticacion> AutenticarAsync(Usuario usuario, string password)
     {
         var mode = _authenticationOptions.GetMode();
 
-        if (soloLocal || mode is EcarAuthenticationMode.Local or EcarAuthenticationMode.Hybrid)
+        if (mode is EcarAuthenticationMode.Local or EcarAuthenticationMode.Hybrid)
         {
             try
             {
@@ -242,8 +193,7 @@ public class AuthService : IAuthService
             }
         }
 
-        if (!soloLocal &&
-            mode is EcarAuthenticationMode.ActiveDirectory or EcarAuthenticationMode.Hybrid &&
+        if (mode is EcarAuthenticationMode.ActiveDirectory or EcarAuthenticationMode.Hybrid &&
             !string.IsNullOrWhiteSpace(usuario.UsuarioAD) &&
             await _activeDirectoryAuthService.AuthenticateAsync(usuario.UsuarioAD, password))
         {
@@ -253,7 +203,7 @@ public class AuthService : IAuthService
         return MetodoAutenticacion.Ninguno;
     }
 
-    private string GenerateJwtToken(Usuario usuario, List<string> roles, bool debeCambiarPassword)
+    private string GenerateJwtToken(Usuario usuario, List<string> roles)
     {
         var jwtSecret = _configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
         var key = Encoding.UTF8.GetBytes(jwtSecret);
@@ -265,11 +215,6 @@ public class AuthService : IAuthService
             // Si el sello cambia (desactivación, cambio de contraseña), el token deja de valer.
             new Claim(SelloSeguridad.TipoClaim, usuario.SecurityStamp)
         };
-
-        if (debeCambiarPassword)
-        {
-            claims.Add(new Claim(ClaimCambioPasswordPendiente, "true"));
-        }
 
         // ASP.NET lee estos claims cuando un endpoint exige un rol.
         foreach (var role in roles)

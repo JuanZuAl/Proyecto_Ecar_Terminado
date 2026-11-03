@@ -18,10 +18,10 @@
 
             @if (IsEditMode)
             {
-                @* Fase 4 (Parte 11 §11.300): la contraseña ya no se cambia desde aquí; el Administrador
-                   usa "Restablecer contraseña" en la lista y el usuario la cambia al entrar. *@
+                @* La contraseña solo se pone al crear el usuario: desde el 03/11/2026 el cambio y el
+                   restablecimiento los hace una API externa. *@
                 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-                    Para cambiar la contraseña use «Restablecer contraseña» en la lista de usuarios.
+                    La contraseña no se cambia ni se restablece en este sistema: la administra la API externa de contraseñas.
                 </MudAlert>
             }
             else

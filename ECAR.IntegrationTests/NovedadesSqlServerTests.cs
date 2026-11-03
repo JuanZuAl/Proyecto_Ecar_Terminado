@@ -41,7 +41,6 @@ public class NovedadesSqlServerTests(BaseCompartida compartida) : IClassFixture<
         public Task<LoginResponseDto?> LoginAsync(LoginDto loginDto) => throw new NotSupportedException();
         public Task<bool> ValidateTokenAsync(string token) => throw new NotSupportedException();
         public Task<bool> VerificarPasswordAsync(long idUsuario, string? password, string operacion) => Task.FromResult(true);
-        public Task<List<string>> CambiarPasswordAsync(long idUsuario, CambiarPasswordDto cambio) => throw new NotSupportedException();
     }
 
     private sealed class Usuario1(long id) : ICurrentUser

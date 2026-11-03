@@ -27,6 +27,8 @@ public static class AuditoriaAcciones
     public const string LoginFallido = "LoginFallido";
     public const string CuentaBloqueada = "CuentaBloqueada";
     public const string CierreSesion = "CierreSesion";
+    // Sin eventos nuevos desde el 03/11/2026 (ya no se cambian ni restablecen contraseñas): se conservan para
+    // leer y filtrar las filas anteriores de la auditoría.
     public const string CambioPassword = "CambioPassword";
     public const string RestablecerPassword = "RestablecerPassword";
     public const string Exportacion = "Exportacion";

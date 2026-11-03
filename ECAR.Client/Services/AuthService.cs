@@ -22,7 +22,7 @@ public class AuthService
     /// Inicia sesión y guarda el token. Nunca devuelve null: si no se pudo entrar, Success es
     /// false y Message dice por qué, tal cual para mostrarlo en el login (endpoint 22, Fase 4):
     /// el mensaje del servidor si lo manda (p. ej. "Cuenta bloqueada hasta HH:mm" con 423) o, sin
-    /// cuerpo, uno según el código. Si entra, Data trae además DebeCambiarPassword y PasswordExpiraEl.
+    /// cuerpo, uno según el código.
     /// </summary>
     public async Task<ApiResponse<LoginResponseDto>> LoginConMensajeAsync(LoginDto loginDto)
     {

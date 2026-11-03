@@ -13,7 +13,7 @@ using ECAR.Infrastructure.Entities;
 var builder = WebApplication.CreateBuilder(args);
 
 // Registrar los servicios en el contenedor.
-builder.Services.AddControllers(options => options.Filters.Add<CambioPasswordPendienteFilter>())
+builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>

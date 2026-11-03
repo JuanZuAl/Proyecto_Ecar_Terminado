@@ -77,21 +77,6 @@ public class IntegracionFase4Tests
     }
 
     [Fact]
-    public async Task Restablecer_no_da_contrasena_local_a_una_cuenta_solo_de_Active_Directory()
-    {
-        await using var db = Base();
-        var usuarioAd = new Usuario { Nombre = "Luis", Correo = "luis@ecar.test", UsuarioAD = "ECAR\\luis", PasswordHash = string.Empty, Activo = true };
-        db.Usuarios.Add(usuarioAd);
-        await db.SaveChangesAsync();
-
-        var resultado = await Fabrica.Usuarios(db).RestablecerPassword(usuarioAd.IdUsuario,
-            new MotivoDto { Motivo = "Olvidó la contraseña del directorio" }, new MotivoCambio());
-
-        Assert.IsType<BadRequestObjectResult>(resultado.Result);
-        Assert.Equal(string.Empty, (await db.Usuarios.AsNoTracking().SingleAsync()).PasswordHash);
-    }
-
-    [Fact]
     public async Task Cerrar_sesion_queda_en_la_auditoria()
     {
         await using var db = Base();

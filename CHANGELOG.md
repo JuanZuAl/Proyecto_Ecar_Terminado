@@ -5,6 +5,26 @@ horaria de Colombia.
 
 ## [Sin publicar] — Fase 5
 
+### Cambiado (pedido del 03/11/2026, rama `integracion-back-front-fase-5`)
+
+- **Las contraseñas ya no se cambian ni se restablecen en el sistema**: el cambio periódico y el restablecimiento los
+  administrará una API externa.
+  - Se quitaron `POST /api/auth/cambiar-password` y `POST /api/usuarios/{id}/restablecer-password` (responden 404), la
+    pantalla `/cambiar-password`, el diálogo de la contraseña temporal y el botón «Restablecer contraseña» de Usuarios.
+  - Al entrar ya no se pide cambiar la contraseña ni se avisa de su vencimiento. Se quitaron el filtro que respondía
+    403 «Debe cambiar su contraseña antes de continuar», la marca del token, la caducidad y el historial de las
+    últimas contraseñas (`Seguridad:DiasExpiracionPassword` y `Seguridad:PasswordsRecordadas`).
+  - Una cuenta que había quedado con contraseña temporal entra con ella y usa el sistema normalmente.
+  - Editar un usuario con contraseña sigue dando 400, ahora con el mensaje «Las contraseñas no se cambian ni se
+    restablecen en este sistema…».
+  - Contrato: sin `CambiarPasswordDto` ni `PasswordTemporalDto`. `LoginResponseDto` ya no trae `DebeCambiarPassword`
+    ni `PasswordExpiraEl`, `UsuarioDto` ya no trae `DebeCambiarPassword`, y `PoliticaSeguridadDto` ya no trae la
+    caducidad ni el historial.
+  - Las columnas `DebeCambiarPassword` y `FechaCambioPassword` y la tabla `HistorialPasswords` se conservan con los
+    datos anteriores. No hay migración.
+- **Sigue igual**: la contraseña del alta (con su política), el bloqueo de la cuenta tras 5 intentos fallidos (30
+  minutos, 423) y el desbloqueo por el Administrador desde Usuarios, con motivo y auditado.
+
 ### Cambiado (pedidos del 30/10/2026, rama `integracion-back-front-fase-5`)
 
 - **Sin pantalla de bienvenida**: al abrir el sistema sin sesión se va directo al inicio de sesión. La portada con

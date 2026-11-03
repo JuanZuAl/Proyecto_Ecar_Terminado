@@ -4,8 +4,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ECAR.Infrastructure.Entities;
 
 /// <summary>
-/// Hashes de las contraseñas anteriores de un usuario, para no repetir las últimas N
-/// (Seguridad:PasswordsRecordadas, PLAN_FASE4_TAREAS §3.1 y §3.8). La auditoría nunca guarda el hash.
+/// Hashes de las contraseñas anteriores de un usuario (PLAN_FASE4_TAREAS §3.1 y §3.8). Desde el 03/11/2026 no se
+/// agregan filas: el sistema ya no cambia contraseñas. La tabla se conserva con lo anterior. La auditoría nunca
+/// guarda el hash.
 /// </summary>
 [Table("HistorialPasswords")]
 public class HistorialPassword

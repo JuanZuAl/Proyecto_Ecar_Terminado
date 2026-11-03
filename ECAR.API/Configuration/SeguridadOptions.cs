@@ -8,14 +8,9 @@ public class SeguridadOptions
 
     public int LongitudMinimaPassword { get; set; } = 10;
     public bool RequiereLetrasYNumeros { get; set; } = true;
-    /// <summary>
-    /// 0: la contraseña no caduca (decisión de ECAR, 29/10/2026; antes 90 días). Con un valor mayor que
-    /// 0 vuelve la caducidad: <see cref="Services.PoliticaPasswords.EstaCaducada"/> obliga a cambiarla.
-    /// </summary>
-    public int DiasExpiracionPassword { get; set; }
 
-    public int PasswordsRecordadas { get; set; } = 5;
-
+    // Sin caducidad ni historial de contraseñas desde el 03/11/2026: el cambio periódico y el restablecimiento
+    // los hará una API externa. Siguen el bloqueo por intentos fallidos y el desbloqueo por el Administrador.
     public int MaxIntentosFallidos { get; set; } = 5;
     public int MinutosBloqueo { get; set; } = 30;
     public int MinutosInactividad { get; set; } = 15;
@@ -24,8 +19,6 @@ public class SeguridadOptions
     {
         LongitudMinimaPassword = LongitudMinimaPassword,
         RequiereLetrasYNumeros = RequiereLetrasYNumeros,
-        DiasExpiracionPassword = DiasExpiracionPassword,
-        PasswordsRecordadas = PasswordsRecordadas,
         MaxIntentosFallidos = MaxIntentosFallidos,
         MinutosBloqueo = MinutosBloqueo,
         MinutosInactividad = MinutosInactividad
