@@ -85,26 +85,40 @@ public static class RegistroInspeccionPdf
         Titulo(seccion, "Respuestas");
         var respuestas = inspeccion.Respuestas.ToDictionary(r => r.IdPregunta);
 
+        // Desde el 04/11/2026 una pregunta Sí/No se responde solo con «¿Presenta novedad?»: la columna «Respuesta» (y la
+        // marca de obligatoria) sale solo si alguna pregunta es de texto o la inspección es de antes y tiene respuestas.
+        var preguntas = inspeccion.Checklist.Preguntas.OrderBy(p => p.Orden).ThenBy(p => p.IdPregunta).ToList();
+        var conRespuesta = preguntas.Any(p => TiposRespuesta.PideRespuesta(p.TipoRespuesta))
+                           || respuestas.Values.Any(r => !string.IsNullOrWhiteSpace(r.Respuesta));
+        var columnaNovedad = conRespuesta ? 3 : 2;
+
         // Primero el texto de cada fila, para repartir el ancho según lo que lleva cada columna.
         var numero = 0;
-        var filas = inspeccion.Checklist.Preguntas.OrderBy(p => p.Orden).ThenBy(p => p.IdPregunta).Select(pregunta =>
+        var filas = preguntas.Select(pregunta =>
         {
             respuestas.TryGetValue(pregunta.IdPregunta, out var respuesta);
             // Desde el 29/10/2026 la novedad la marca «¿Presenta novedad?» (ReglaNovedad; las anteriores, por «No»).
             var esNovedad = ReglaNovedad.Presenta(inspeccion, pregunta, respuesta) == true;
-            return (EsNovedad: esNovedad, Textos: (IReadOnlyList<string>)
-            [
+            var textos = new List<string>
+            {
                 (++numero).ToString(),
-                pregunta.Pregunta + (pregunta.Obligatoria ? " *" : string.Empty),
-                Valor(respuesta?.Respuesta, pregunta.TipoRespuesta),
-                esNovedad ? "Sí (novedad)" : "No",
-                string.IsNullOrWhiteSpace(respuesta?.Observacion) ? "—" : respuesta!.Observacion
-            ]);
+                pregunta.Pregunta + (conRespuesta && pregunta.Obligatoria ? " *" : string.Empty)
+            };
+            if (conRespuesta)
+            {
+                textos.Add(Valor(respuesta?.Respuesta, pregunta.TipoRespuesta));
+            }
+
+            textos.Add(esNovedad ? "Sí (novedad)" : "No");
+            textos.Add(string.IsNullOrWhiteSpace(respuesta?.Observacion) ? "—" : respuesta!.Observacion);
+            return (EsNovedad: esNovedad, Textos: (IReadOnlyList<string>)textos);
         }).ToList();
 
         const double tamano = 8.5;
         using var ajuste = new AjusteTexto(tamano);
-        string[] encabezados = ["#", "Pregunta", "Respuesta", "¿Presenta novedad?", "Observación"];
+        string[] encabezados = conRespuesta
+            ? ["#", "Pregunta", "Respuesta", "¿Presenta novedad?", "Observación"]
+            : ["#", "Pregunta", "¿Presenta novedad?", "Observación"];
         var anchos = ajuste.Anchos(encabezados, filas.Select(f => f.Textos).ToList(), anchoCm);
 
         var tabla = seccion.AddTable();
@@ -137,13 +151,16 @@ public static class RegistroInspeccionPdf
             for (var c = 0; c < textos.Count; c++)
             {
                 // «Sí (novedad)» va en negrita.
-                ajuste.Escribir(fila.Cells[c].AddParagraph(), textos[c], anchos[c], negrita: esNovedad && c == 3);
+                ajuste.Escribir(fila.Cells[c].AddParagraph(), textos[c], anchos[c], negrita: esNovedad && c == columnaNovedad);
             }
         }
 
-        var nota = seccion.AddParagraph("* Pregunta obligatoria.");
-        nota.Format.Font.Size = 7;
-        nota.Format.Font.Color = Colors.DimGray;
+        if (conRespuesta && preguntas.Any(p => p.Obligatoria))
+        {
+            var nota = seccion.AddParagraph("* Pregunta obligatoria.");
+            nota.Format.Font.Size = 7;
+            nota.Format.Font.Color = Colors.DimGray;
+        }
     }
 
     private static void Evidencias(Section seccion, Inspeccion inspeccion, IReadOnlyDictionary<long, byte[]> imagenes,

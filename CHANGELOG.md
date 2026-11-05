@@ -5,6 +5,21 @@ horaria de Colombia.
 
 ## [Sin publicar] — Fase 5
 
+### Cambiado (pedido del 04/11/2026, rama `integracion-back-front-fase-5`)
+
+- **Formulario de la inspección: solo «¿Presenta novedad?»**. Las preguntas Sí/No ya no tienen su propio Sí/No: se
+  ve el texto de la pregunta, «¿Presenta novedad?» (igual que antes, con «No» marcado) y la observación.
+  - Lo que se deja sin marcar se registra como «No» al firmar: el servidor crea o completa la respuesta antes del
+    sello, así que el registro firmado dice Sí o No en cada pregunta (`RegistrarNoEnLasSinMarcar`).
+  - «Obligatoria» solo cuenta en las preguntas de texto que quedan de checklists anteriores, que conservan su campo
+    (`TiposRespuesta.PideRespuesta`). Una Sí/No ya no bloquea la firma ni el paso de preguntas. Sigue exigiéndose la
+    observación de cada novedad.
+  - El resumen del paso dice cuántas novedades hay («2 novedad(es)») cuando no hay preguntas de texto obligatorias.
+  - El resultado y el registro PDF ya no muestran la columna «Respuesta» cuando no la hay. Las inspecciones firmadas
+    antes la siguen mostrando con sus valores.
+  - Sin cambios de contrato ni de base de datos. `TotalObligatorias` cuenta solo las preguntas que piden respuesta
+    escrita.
+
 ### Cambiado (pedido del 03/11/2026, rama `integracion-back-front-fase-5`)
 
 - **Las contraseñas ya no se cambian ni se restablecen en el sistema**: el cambio periódico y el restablecimiento los

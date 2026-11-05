@@ -590,6 +590,8 @@ public class InspeccionesController : ControllerBase
             return StatusCode(StatusCodes.Status423Locked, ApiResponse<InspeccionResultadoDto>.ErrorResponse(ex.Message));
         }
 
+        RegistrarNoEnLasSinMarcar(inspeccion);
+
         var fechaCierre = DateTime.UtcNow;
         var conNovedades = TieneNovedades(inspeccion);
         inspeccion.Estado = conNovedades ? InspeccionEstados.NovedadesPendientes : InspeccionEstados.Cerrada;
@@ -805,7 +807,9 @@ public class InspeccionesController : ControllerBase
             respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta);
             var sinResponder = respuesta == null || string.IsNullOrWhiteSpace(respuesta.Respuesta);
 
-            if (pregunta.Obligatoria && sinResponder)
+            // Una Sí/No se responde con «¿Presenta novedad?» (04/11/2026), que sin marcar queda en «No» al firmar:
+            // solo una de texto obligatoria puede quedar sin responder.
+            if (pregunta.Obligatoria && TiposRespuesta.PideRespuesta(pregunta.TipoRespuesta) && sinResponder)
             {
                 faltantes.Add($"La pregunta obligatoria «{pregunta.Pregunta}» no tiene respuesta");
                 continue;
@@ -820,6 +824,32 @@ public class InspeccionesController : ControllerBase
         }
 
         return faltantes;
+    }
+
+    /// <summary>
+    /// «¿Presenta novedad?» empieza en «No» y la pantalla solo guarda lo que se toca (04/11/2026): al firmar, cada
+    /// pregunta Sí/No sin marcar queda en «No» de forma explícita, con su fila si no la tenía, para que el registro
+    /// firmado diga Sí o No en todas. Se hace antes del sello, que cubre las respuestas por pregunta.
+    /// </summary>
+    private static void RegistrarNoEnLasSinMarcar(Inspeccion inspeccion)
+    {
+        var respuestasPorPregunta = inspeccion.Respuestas.ToDictionary(respuesta => respuesta.IdPregunta);
+        foreach (var pregunta in inspeccion.Checklist.Preguntas.Where(p => !TiposRespuesta.PideRespuesta(p.TipoRespuesta)))
+        {
+            if (!respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta))
+            {
+                inspeccion.Respuestas.Add(new RespuestaInspeccion
+                {
+                    IdInspeccion = inspeccion.IdInspeccion,
+                    IdPregunta = pregunta.IdPregunta,
+                    PresentaNovedad = false
+                });
+            }
+            else if (respuesta.PresentaNovedad == null)
+            {
+                respuesta.PresentaNovedad = false;
+            }
+        }
     }
 
     private static bool TieneNovedades(Inspeccion inspeccion)
@@ -1002,7 +1032,10 @@ public class InspeccionesController : ControllerBase
             .ToDictionary(respuesta => respuesta.IdPregunta);
 
         var preguntasChecklist = inspeccion.Checklist.Preguntas.ToList();
-        var obligatorias = preguntasChecklist.Where(pregunta => pregunta.Obligatoria).ToList();
+        // Solo las de texto piden respuesta (04/11/2026): una Sí/No se responde con «¿Presenta novedad?».
+        var obligatorias = preguntasChecklist
+            .Where(pregunta => pregunta.Obligatoria && TiposRespuesta.PideRespuesta(pregunta.TipoRespuesta))
+            .ToList();
         var obligatoriasRespondidas = obligatorias.Count(pregunta =>
             respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta)
             && !string.IsNullOrWhiteSpace(respuesta.Respuesta));

@@ -32,6 +32,13 @@ public static class TiposRespuesta
     /// </summary>
     public static bool EsValidoParaGuardar(string? tipo) => tipo?.Trim() == SiNo;
 
+    /// <summary>
+    /// true si la pregunta pide escribir una respuesta. Desde el 04/11/2026 una pregunta Sí/No se responde solo con
+    /// «¿Presenta novedad?» (sin marcar es «No»), así que solo las de texto, que quedan de checklists anteriores, la
+    /// piden; y solo para ellas cuenta «Obligatoria».
+    /// </summary>
+    public static bool PideRespuesta(string? tipo) => tipo?.Trim() != SiNo;
+
     public const string MensajeSoloSiNo =
         "Las preguntas son de Sí/No: el tipo «Texto» ya no se usa en preguntas nuevas o editadas";
 
