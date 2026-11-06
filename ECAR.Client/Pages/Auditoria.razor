@@ -82,11 +82,11 @@
                     <MudNumericField T="long?" Label="Id del registro" @bind-Value="filtro.RegistroId" Variant="Variant.Outlined"
                         Min="1" HideSpinButtons="true" Clearable="true" />
                 </MudItem>
-                <MudItem xs="6" sm="4">
-                    <MudDatePicker Label="Desde" @bind-Date="filtro.Desde" Variant="Variant.Outlined" Editable="true" Clearable="true" />
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="filtro.Desde" Variant="Variant.Outlined" Editable="true" Clearable="true" />
                 </MudItem>
-                <MudItem xs="6" sm="4">
-                    <MudDatePicker Label="Hasta" @bind-Date="filtro.Hasta" Variant="Variant.Outlined" Editable="true" Clearable="true" />
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="filtro.Hasta" Variant="Variant.Outlined" Editable="true" Clearable="true" />
                 </MudItem>
                 <MudItem xs="12" Class="d-flex flex-wrap gap-2 justify-end">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="LimpiarAsync">Limpiar</MudButton>
