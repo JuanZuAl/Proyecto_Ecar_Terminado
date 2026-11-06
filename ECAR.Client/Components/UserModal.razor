@@ -14,6 +14,7 @@
 
             <MudTextField T="string" Label="Correo" @bind-Value="correo" 
                 Variant="Variant.Outlined" Required="true" RequiredError="El correo es requerido"
+                Validation="@(new Func<string, IEnumerable<string>>(ErroresCorreo))"
                 MaxLength="150" Immediate="true" Class="mb-3" />
 
             @if (IsEditMode)
@@ -28,6 +29,8 @@
             {
                 <MudTextField T="string" Label="Contraseña" @bind-Value="password" 
                     Variant="Variant.Outlined" Required="true" RequiredError="La contraseña es requerida"
+                    Validation="@(new Func<string, IEnumerable<string>>(ErroresPassword))"
+                    HelperText="@TextoPolitica" HelperTextOnFocus="false"
                     InputType="InputType.Password" Immediate="true" Class="mb-3" />
             }
 
@@ -77,9 +80,26 @@
     private IReadOnlyCollection<long> selectedRoleIds = new HashSet<long>();
     private List<RolDto>? availableRoles;
 
+    // Reglas de la contraseña del alta: las que publica el API (api/auth/politica); mientras no respondan,
+    // las del plan (PoliticaSeguridadDto trae los valores por defecto).
+    private PoliticaSeguridadDto politica = new();
+
+    private string TextoPolitica => politica.RequiereLetrasYNumeros
+        ? $"Mínimo {politica.LongitudMinimaPassword} caracteres, combinando letras y números"
+        : $"Mínimo {politica.LongitudMinimaPassword} caracteres";
+
     protected override async Task OnInitializedAsync()
     {
         availableRoles = AvailableRoles ?? new List<RolDto>();
+
+        if (!IsEditMode)
+        {
+            var respuestaPolitica = await HttpClientService.GetPoliticaSeguridadAsync();
+            if (respuestaPolitica.Success && respuestaPolitica.Data is { LongitudMinimaPassword: > 0 } datos)
+            {
+                politica = datos;
+            }
+        }
         
         if (IsEditMode && Usuario != null)
         {
@@ -97,6 +117,35 @@
                     .Select(r => r.IdRol)
                     .ToHashSet();
             }
+        }
+    }
+
+    // Mismas reglas y mensajes que el API (EmailAddress de CreateUsuarioDto y PoliticaPasswords). Vacío no es
+    // un error de formato: de eso se encarga Required.
+    private static IEnumerable<string> ErroresCorreo(string valor)
+    {
+        if (!string.IsNullOrWhiteSpace(valor)
+            && !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(valor.Trim()))
+        {
+            yield return "Formato de correo inválido";
+        }
+    }
+
+    private IEnumerable<string> ErroresPassword(string valor)
+    {
+        if (string.IsNullOrEmpty(valor))
+        {
+            yield break;
+        }
+
+        if (valor.Length < politica.LongitudMinimaPassword)
+        {
+            yield return $"La contraseña debe tener al menos {politica.LongitudMinimaPassword} caracteres";
+        }
+
+        if (politica.RequiereLetrasYNumeros && (!valor.Any(char.IsLetter) || !valor.Any(char.IsDigit)))
+        {
+            yield return "La contraseña debe combinar letras y números";
         }
     }
 
@@ -147,7 +196,7 @@
                 }
                 else
                 {
-                    Snackbar.Add(result?.Message ?? "Error al actualizar usuario", Severity.Error);
+                    Snackbar.Add(MensajeApi.Detalle(result, "Error al actualizar usuario"), Severity.Error);
                 }
             }
             else
@@ -170,7 +219,7 @@
                 }
                 else
                 {
-                    Snackbar.Add(result?.Message ?? "Error al crear usuario", Severity.Error);
+                    Snackbar.Add(MensajeApi.Detalle(result, "Error al crear usuario"), Severity.Error);
                 }
             }
         }
