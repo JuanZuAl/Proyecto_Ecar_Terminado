@@ -26,6 +26,22 @@ public static class FormatoAuditoria
         }
     };
 
+    /// <summary>Nombre legible de la acción (el valor guardado, p. ej. «LoginExitoso», no cambia).</summary>
+    public static string NombreAccion(string? accion) => accion switch
+    {
+        AuditoriaAcciones.LoginExitoso => "Inicio de sesión",
+        AuditoriaAcciones.LoginFallido => "Inicio de sesión fallido",
+        AuditoriaAcciones.CuentaBloqueada => "Cuenta bloqueada",
+        AuditoriaAcciones.CierreSesion => "Cierre de sesión",
+        AuditoriaAcciones.CambioPassword => "Cambio de contraseña",
+        AuditoriaAcciones.RestablecerPassword => "Restablecimiento de contraseña",
+        AuditoriaAcciones.Exportacion => "Exportación",
+        AuditoriaAcciones.VerificacionIntegridad => "Verificación de integridad",
+        AuditoriaAcciones.NotificacionEnviada => "Notificación enviada",
+        AuditoriaAcciones.NotificacionFallida => "Notificación fallida",
+        _ => accion ?? string.Empty
+    };
+
     /// <summary>La auditoría guarda la hora del servidor en UTC; se muestra en la hora local con segundos.</summary>
     public static string FechaHora(DateTime utc) =>
         DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
