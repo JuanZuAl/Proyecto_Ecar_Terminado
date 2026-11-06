@@ -34,6 +34,7 @@
                        Disabled="@(enviando || bloqueado)"
                        AdornmentIcon="@(mostrarPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
                        Adornment="Adornment.End"
+                       AdornmentAriaLabel="@(mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña")"
                        OnAdornmentClick="@(() => mostrarPassword = !mostrarPassword)"
                        OnKeyUp="@ManejarEnter"
                        Error="@tieneError"
