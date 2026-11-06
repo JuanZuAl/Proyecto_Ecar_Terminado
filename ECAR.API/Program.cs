@@ -38,8 +38,11 @@ if (string.IsNullOrWhiteSpace(conn))
 }
 
 // Configurar Entity Framework
+// Las consultas de inspecciones cargan varias colecciones a la vez (preguntas, respuestas, evidencias,
+// novedades): en una sola consulta se multiplican las filas (producto cartesiano); en consultas
+// separadas no (B-14).
 builder.Services.AddDbContext<ECARDbContext>(options =>
-    options.UseSqlServer(conn));
+    options.UseSqlServer(conn, sql => sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
 // Configurar la autenticación JWT
 var jwtSecret = builder.Configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
