@@ -103,7 +103,7 @@
                     <div>
                         <MudText Typo="Typo.h4">@tablero.TotalEquipos</MudText>
                         <MudText Typo="Typo.body2">Equipos activos</MudText>
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@tablero.EquiposInspeccionados inspeccionado(s) @EnElPeriodo</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@Texto.Cantidad(tablero.EquiposInspeccionados, "equipo inspeccionado", "equipos inspeccionados") @EnElPeriodo</MudText>
                     </div>
                 </MudPaper>
             </MudItem>
@@ -115,7 +115,7 @@
                         <MudText Typo="Typo.body2">Inspecciones realizadas @EnElPeriodo</MudText>
                         @if (!tablero.Filtros.Total)
                         {
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@tablero.InspeccionesRealizadas firmadas desde el inicio</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@Texto.Cantidad(tablero.InspeccionesRealizadas, "firmada", "firmadas") desde el inicio</MudText>
                         }
                     </div>
                 </MudPaper>
@@ -137,7 +137,7 @@
                         <MudText Typo="Typo.h4">@tablero.NovedadesPendientes</MudText>
                         <MudText Typo="Typo.body2">Novedades pendientes</MudText>
                         <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                            registradas en el periodo; @tablero.InspeccionesConNovedadesPendientes inspección(es) firmada(s) sin cerrar
+                            registradas en el periodo; @Texto.Cantidad(tablero.InspeccionesConNovedadesPendientes, "inspección firmada", "inspecciones firmadas") sin cerrar
                         </MudText>
                     </div>
                 </MudPaper>

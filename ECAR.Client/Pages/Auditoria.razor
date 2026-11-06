@@ -44,7 +44,7 @@
                     ShowCloseIcon="true" CloseIconClicked="@(() => verificacion = null)">
                     @if (resultado.Valida)
                     {
-                        <span>Integridad correcta: @resultado.FilasRevisadas fila(s) revisadas, ninguna alterada ni borrada.</span>
+                        <span>Integridad correcta: @Texto.Cantidad(resultado.FilasRevisadas, "fila revisada", "filas revisadas"), ninguna alterada ni borrada.</span>
                     }
                     else
                     {
@@ -133,7 +133,7 @@
                 </MudTable>
 
                 <div class="d-flex flex-wrap align-center justify-space-between mt-4 gap-2">
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@totalRegistros registro(s)</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@Texto.Cantidad(totalRegistros, "registro", "registros")</MudText>
                     <MudPagination Count="@totalPages" Selected="@currentPage" SelectedChanged="CambiarPaginaAsync" />
                 </div>
             }

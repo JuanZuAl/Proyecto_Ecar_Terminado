@@ -41,7 +41,7 @@
             @if (resultado.Estado == InspeccionEstados.NovedadesPendientes)
             {
                 <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
-                    La inspección está firmada, pero tiene @resultado.NovedadesPendientes novedad(es) sin resolver. El resultado
+                    La inspección está firmada, pero tiene @Texto.Cantidad(resultado.NovedadesPendientes, "novedad", "novedades") sin resolver. El resultado
                     queda «Pendiente» y pasa a «Conforme», con la inspección cerrada, cuando se resuelvan todas.
                 </MudAlert>
             }

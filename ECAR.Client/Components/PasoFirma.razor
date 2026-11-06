@@ -10,9 +10,9 @@
             <MudText Typo="Typo.body2"><b>Checklist:</b> @Inspeccion.NombreChecklist (v. @Inspeccion.VersionChecklist)</MudText>
         </MudItem>
         <MudItem xs="12" sm="6">
-            <MudText Typo="Typo.body2"><b>Preguntas:</b> @Inspeccion.Preguntas.Count respuesta(s)</MudText>
-            <MudText Typo="Typo.body2"><b>Novedades:</b> @Inspeccion.TotalNovedades novedad(es)</MudText>
-            <MudText Typo="Typo.body2"><b>Evidencias:</b> @Inspeccion.Evidencias.Count fotografía(s)</MudText>
+            <MudText Typo="Typo.body2"><b>Preguntas:</b> @Texto.Cantidad(Inspeccion.Preguntas.Count, "respuesta", "respuestas")</MudText>
+            <MudText Typo="Typo.body2"><b>Novedades:</b> @Texto.Cantidad(Inspeccion.TotalNovedades, "novedad", "novedades")</MudText>
+            <MudText Typo="Typo.body2"><b>Evidencias:</b> @Texto.Cantidad(Inspeccion.Evidencias.Count, "fotografía", "fotografías")</MudText>
         </MudItem>
     </MudGrid>
 </MudCard>

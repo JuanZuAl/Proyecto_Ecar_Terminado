@@ -685,7 +685,7 @@
     </MudItem>;
 
     private RenderFragment Paginacion<T>(EstadoReporte<T> estado, Func<int, Task> cambiarPagina) => @<div class="d-flex flex-wrap align-center justify-space-between mt-4 gap-2">
-        <MudText Typo="Typo.caption" Class="mud-text-secondary">@estado.TotalRegistros registro(s)</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@Texto.Cantidad(estado.TotalRegistros, "registro", "registros")</MudText>
         <MudPagination Count="@estado.TotalPaginas" Selected="@estado.Pagina" SelectedChanged="cambiarPagina" />
     </div>;
 

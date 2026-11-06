@@ -39,7 +39,7 @@
         </MudGrid>
 
         <MudText Typo="Typo.subtitle2" Class="mb-2">
-            Consulta histórica · @totalInspecciones inspección(es)
+            Consulta histórica · @Texto.Cantidad(totalInspecciones, "inspección", "inspecciones")
         </MudText>
 
         @if (cargando)

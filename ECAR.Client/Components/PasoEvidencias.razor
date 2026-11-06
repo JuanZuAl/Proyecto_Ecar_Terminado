@@ -23,13 +23,13 @@
     {
         <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-2" />
         <MudText Typo="Typo.caption" Class="mud-text-secondary">
-            Subiendo @_subidasEnCurso fotografía(s)…
+            Subiendo @Texto.Cantidad(_subidasEnCurso, "fotografía", "fotografías")…
         </MudText>
     }
 }
 
 <MudText Typo="Typo.body2" Class="mud-text-secondary mt-3 mb-2">
-    @EvidenciasVisibles.Count fotografía(s) adjunta(s)
+    @Texto.Cantidad(EvidenciasVisibles.Count, "fotografía adjunta", "fotografías adjuntas")
 </MudText>
 
 @if (EvidenciasVisibles.Any())

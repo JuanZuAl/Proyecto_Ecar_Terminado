@@ -107,7 +107,7 @@
 
     private string ResumenEvidencias => inspeccion == null
         ? string.Empty
-        : $"{inspeccion.Evidencias.Count} fotografía(s)";
+        : Texto.Cantidad(inspeccion.Evidencias.Count, "fotografía", "fotografías");
 
     protected override async Task OnParametersSetAsync()
     {

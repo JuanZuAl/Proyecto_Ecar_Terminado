@@ -11,7 +11,7 @@
 <MudAutocomplete @ref="buscador" T="TItem" Label="@Label" Value="@seleccionActual" ValueChanged="AgregarAsync"
                  SearchFunc="SearchFunc" ToStringFunc="ToStringFunc" Variant="Variant.Outlined"
                  MinCharacters="0" MaxItems="20" ResetValueOnEmptyText="true"
-                 HelperText="@(Seleccionados.Count == 0 ? HelperText : $"{Seleccionados.Count} elegido(s)")" />
+                 HelperText="@(Seleccionados.Count == 0 ? HelperText : Texto.Cantidad(Seleccionados.Count, "elegido", "elegidos"))" />
 @if (Seleccionados.Count > 0)
 {
     <div class="d-flex flex-wrap gap-1 mt-1 buscador-multiple-etiquetas">
