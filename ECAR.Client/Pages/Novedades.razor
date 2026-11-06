@@ -210,6 +210,8 @@
         if (IdNovedad is > 0)
         {
             await AbrirDetalleAsync(IdNovedad.Value, false);
+            // Cerrado el detalle abierto por enlace directo se limpia la URL: con F5 ya no se reabre.
+            NavigationManager.NavigateTo("/novedades", replace: true);
         }
     }
 
