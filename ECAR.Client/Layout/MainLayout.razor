@@ -214,6 +214,14 @@
     private bool soloOperador = false;
     private bool isAuthenticated = false;
 
+    protected override void OnInitialized()
+    {
+        // El cajón empieza abierto porque casi siempre hay sesión y así no hay saltos. En el login no: si se
+        // abriera en el primer pintado y se cerrara al leer el token, al abrir o recargar /login se vería
+        // un instante la franja azul vacía y la tarjeta desplazada (M-01).
+        drawerOpen = !EsLogin;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         isAuthenticated = await AuthService.IsAuthenticated();
