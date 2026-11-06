@@ -30,7 +30,7 @@
         {
             <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="HandleLogout" title="Cerrar sesión">
                 <MudIcon Icon="@Icons.Material.Filled.Logout" Class="mr-2" />
-                <span class="texto-barra">Logout</span>
+                <span class="texto-barra">Cerrar sesión</span>
             </MudButton>
         }
     </MudAppBar>
@@ -44,7 +44,7 @@
         @if (isAuthenticated && !EsLogin)
         {
         <MudNavMenu Class="menu-lateral">
-            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Inicio</MudNavLink>
             <MudNavLink Href="/inspecciones" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Assignment">Inspecciones</MudNavLink>
             @* Consulta de equipos para todos los roles; crear y editar sigue siendo del Administrador. *@
             <MudNavLink Href="/equipos" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Devices">Equipos</MudNavLink>
