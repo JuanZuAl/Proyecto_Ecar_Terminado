@@ -240,6 +240,18 @@
             return false;
         }
 
+        // «¿Presenta novedad?» no viene marcado: en cada pregunta respondida hay que elegir Sí o No (B-13).
+        var sinElegirNovedad = NumerosDe(inspeccion.Preguntas
+            .Where(p => !string.IsNullOrWhiteSpace(p.Respuesta) && p.PresentaNovedad == null));
+        if (sinElegirNovedad.Count > 0)
+        {
+            Snackbar.Add(sinElegirNovedad.Count == 1
+                    ? $"Elija Sí o No en «¿Presenta novedad?» de la pregunta {sinElegirNovedad[0]}"
+                    : $"Elija Sí o No en «¿Presenta novedad?» de las preguntas {UnirNumeros(sinElegirNovedad)}",
+                Severity.Warning);
+            return false;
+        }
+
         var novedadSinObservacion = NumerosDe(inspeccion.Preguntas
             .Where(p => p.EsNovedad && string.IsNullOrWhiteSpace(p.Observacion)));
         if (novedadSinObservacion.Count > 0)
