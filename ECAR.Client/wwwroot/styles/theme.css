@@ -205,6 +205,13 @@ td.col-acciones .mud-button-root {
     }
 }
 
+/* Los botones de un diálogo bajan de línea cuando no caben: MudBlazor los deja en una sola fila y, a 375 px,
+   «Descargar PNG» y «Regenerar» del diálogo del QR se cortaban dentro de su botón (M-06). */
+.mud-dialog .mud-dialog-actions {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
 /* Miniaturas de evidencias que se abren en grande (29/10/2026, VisorImagenDialog). Botón para que
    también se abran con el teclado. */
 .miniatura-ampliable {
