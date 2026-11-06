@@ -157,8 +157,9 @@ body {
     }
 }
 
-/* Tablas con muchas columnas: menos relleno lateral en cada celda (MudBlazor pone 16 px por lado) para que
-   quepan en el ancho de la tarjeta sin desplazarse en horizontal (M-02). Se activa con Class="tabla-compacta". */
+/* Tablas con muchas columnas: menos relleno lateral en cada celda (MudBlazor pone 16 px a la izquierda y,
+   en las densas, 24 a la derecha) para que quepan en el ancho de la tarjeta sin desplazarse en horizontal
+   (M-02, M-03, M-05). Se activa con Class="tabla-compacta". */
 .mud-table.tabla-compacta .mud-table-cell {
     padding-left: 8px;
     padding-right: 8px;
