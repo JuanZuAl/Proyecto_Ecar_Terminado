@@ -157,6 +157,13 @@ body {
     }
 }
 
+/* Tablas con muchas columnas: menos relleno lateral en cada celda (MudBlazor pone 16 px por lado) para que
+   quepan en el ancho de la tarjeta sin desplazarse en horizontal (M-02). Se activa con Class="tabla-compacta". */
+.mud-table.tabla-compacta .mud-table-cell {
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
 /* Cada botón en una sola línea: la columna toma el ancho del botón más largo y no parte «Ver resultado». */
 td.col-acciones .mud-button-root {
     margin: 2px;
