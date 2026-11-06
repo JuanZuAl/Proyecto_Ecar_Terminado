@@ -42,7 +42,9 @@ public class RolesController : ControllerBase
 
         var totalCount = await query.CountAsync();
 
+        // Paginar sin orden definido deja que el orden varíe entre consultas y repita u omita filas (M-14).
         var roles = await query
+            .OrderBy(r => r.IdRol)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(r => new RolDto

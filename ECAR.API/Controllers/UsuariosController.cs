@@ -58,7 +58,9 @@ public class UsuariosController : ControllerBase
 
         var totalCount = await query.CountAsync();
 
+        // Paginar sin orden definido deja que el orden varíe entre consultas y repita u omita filas (M-14).
         var usuarios = await query
+            .OrderBy(u => u.IdUsuario)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(u => new UsuarioDto
