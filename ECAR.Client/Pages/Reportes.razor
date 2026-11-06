@@ -21,7 +21,7 @@
         </MudCardHeader>
 
         <MudCardContent>
-            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pt-3">
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pt-3" Class="tabs-reportes">
 
                 @* ---------- Historial por Equipo ---------- *@
                 <MudTabPanel Text="Historial por Equipo">
@@ -58,7 +58,7 @@
                     }
                     else if (estadoEquipo.Filas.Any())
                     {
-                        <MudTable Items="estadoEquipo.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoEquipo.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
                                 <MudTh>Inspección</MudTh>
                                 <MudTh>Sede</MudTh>
@@ -144,7 +144,7 @@
                     }
                     else if (estadoArea.Filas.Any())
                     {
-                        <MudTable Items="estadoArea.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoArea.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
                                 <MudTh>Inspección</MudTh>
                                 <MudTh>Sede</MudTh>
@@ -212,7 +212,7 @@
                     }
                     else if (estadoUsuario.Filas.Any())
                     {
-                        <MudTable Items="estadoUsuario.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoUsuario.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
                                 <MudTh>Inspección</MudTh>
                                 <MudTh>Sede</MudTh>
@@ -292,7 +292,7 @@
                     }
                     else if (estadoNovedades.Filas.Any())
                     {
-                        <MudTable Items="estadoNovedades.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoNovedades.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
                                 <MudTh>Novedad</MudTh>
                                 <MudTh>Sede</MudTh>
@@ -439,6 +439,15 @@
     </MudCard>
 </MudContainer>
 </RolRouteGuard>
+
+<style>
+    /* Cinco pestañas largas: con el relleno por defecto casi llenan el ancho y, al aparecer la barra de
+       desplazamiento vertical (con los resultados), salen las flechas de desplazamiento de la barra (M-03). */
+    .mud-tabs.tabs-reportes .mud-tab {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+</style>
 
 @code {
     private const int TamanoPagina = 10;
