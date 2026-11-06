@@ -46,6 +46,10 @@
                             <MudImage Src="@src" ObjectFit="ObjectFit.Cover" Height="140" Class="mud-width-full" />
                         </button>
                     }
+                    else if (miniaturas.ContainsKey(evidencia.IdEvidencia))
+                    {
+                        <EvidenciaNoDisponible Alto="140px" />
+                    }
                     else
                     {
                         <MudSkeleton Height="140px" />

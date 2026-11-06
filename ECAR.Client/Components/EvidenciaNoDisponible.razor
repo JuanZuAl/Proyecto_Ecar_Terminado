@@ -1,0 +1,24 @@
+@* Lo que se ve en lugar de la miniatura cuando el archivo de una evidencia no se pudo descargar (el API
+   responde 404 si el archivo falta en el almacenamiento): un aviso, no un cuadro gris vacío que parece
+   seguir cargando (M-09). *@
+@if (Compacta)
+{
+    <MudIcon Icon="@Icons.Material.Filled.BrokenImage" Title="Archivo no disponible" />
+}
+else
+{
+    <div class="d-flex flex-column align-center justify-center mud-text-secondary pa-2"
+         style="@($"height: {Alto}; background-color: var(--mud-palette-background-gray); border-radius: 4px;")"
+         role="img" aria-label="Archivo no disponible">
+        <MudIcon Icon="@Icons.Material.Filled.BrokenImage" Size="Size.Large" />
+        <MudText Typo="Typo.caption" Class="mt-1 text-center">Archivo no disponible</MudText>
+    </div>
+}
+
+@code {
+    /// <summary>Alto del recuadro, igual que el de la miniatura que reemplaza.</summary>
+    [Parameter] public string Alto { get; set; } = "140px";
+
+    /// <summary>Solo el icono (con su texto al pasar el cursor), para la miniatura pequeña de las tablas.</summary>
+    [Parameter] public bool Compacta { get; set; }
+}
