@@ -163,14 +163,20 @@ public class CorreccionesPruebasTests
         Assert.True(publico.IdEquipo > 0);
         Assert.Null(publico.Marca);
         Assert.Null(publico.Modelo);
-        Assert.Null(publico.SerialFabricante);
         Assert.Null(publico.Criticidad);
-        Assert.Equal(string.Empty, publico.ActivoFijo);
+        Assert.Null(publico.CategoriaNombre);
+
+        // En el JSON público no viajan campos vacíos ni de relleno ni datos que la pantalla no usa.
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            Assert.IsType<ApiResponse<ConsultaQrDto>>(Assert.IsType<OkObjectResult>(anonimo).Value).Data!,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        foreach (var campo in new[] { "qrCode", "fechaCreacion", "activoFijo", "idUbicacion", "serialFabricante", "fabricante", "idCategoria", "marca", "modelo", "criticidad" })
+        {
+            Assert.DoesNotContain($"\"{campo}\"", json);
+        }
 
         var completo = Assert.IsType<ApiResponse<ConsultaQrDto>>(Assert.IsType<OkObjectResult>(conSesion).Value).Data!.Equipo;
         Assert.Equal("Mettler", completo.Marca);
-        Assert.Equal("AF-1", completo.ActivoFijo);
-        Assert.Null(completo.QRCode);
     }
 
     // ------------------------------------------------------------------ preguntas por DTO (punto 9)

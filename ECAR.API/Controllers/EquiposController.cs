@@ -475,34 +475,31 @@ public class EquiposController : ControllerBase
         var checklists = await _context.Checklists
             .Where(c => c.Activo && c.Preguntas.Any())
             .OrderBy(c => c.Nombre)
-            .Select(c => new ChecklistDto
+            .Select(c => new ChecklistQrDto
             {
                 IdChecklist = c.IdChecklist,
                 Nombre = c.Nombre,
-                Version = c.Version,
-                Activo = c.Activo,
-                FechaCreacion = c.FechaCreacion
+                Version = c.Version
             })
             .ToListAsync();
 
-        var ficha = MapToDto(equipo);
+        var conSesion = HttpContext?.User.Identity?.IsAuthenticated == true;
         var dto = new ConsultaQrDto
         {
-            Equipo = HttpContext?.User.Identity?.IsAuthenticated == true
-                ? ficha
-                : new EquipoDto
-                {
-                    IdEquipo = ficha.IdEquipo,
-                    CodigoInterno = ficha.CodigoInterno,
-                    NombreEquipo = ficha.NombreEquipo,
-                    IdUbicacion = ficha.IdUbicacion,
-                    UbicacionNombre = ficha.UbicacionNombre,
-                    Activo = ficha.Activo
-                },
+            Equipo = new EquipoQrFichaDto
+            {
+                IdEquipo = equipo.IdEquipo,
+                CodigoInterno = equipo.CodigoInterno,
+                NombreEquipo = equipo.NombreEquipo,
+                UbicacionNombre = equipo.Ubicacion != null ? equipo.Ubicacion.Planta + " - " + equipo.Ubicacion.Area : null,
+                // Solo con sesión; el token y el resto de la ficha técnica nunca salen en la respuesta pública.
+                Criticidad = conSesion ? equipo.Criticidad : null,
+                Marca = conSesion ? equipo.Marca : null,
+                Modelo = conSesion ? equipo.Modelo : null,
+                CategoriaNombre = conSesion ? equipo.Categoria?.Nombre : null
+            },
             ChecklistsActivos = checklists
         };
-        // El token no se devuelve en la respuesta pública
-        dto.Equipo.QRCode = null;
 
         return Ok(ApiResponse<ConsultaQrDto>.SuccessResponse(dto));
     }

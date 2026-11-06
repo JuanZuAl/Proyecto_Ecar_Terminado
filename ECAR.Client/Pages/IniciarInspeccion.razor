@@ -142,7 +142,13 @@
             return;
         }
 
-        _equipo = consulta.Equipo;
+        // La ficha del QR trae solo lo que se muestra; al buscador le basta con el id, el código y el nombre.
+        _equipo = new EquipoDto
+        {
+            IdEquipo = consulta.Equipo.IdEquipo,
+            CodigoInterno = consulta.Equipo.CodigoInterno,
+            NombreEquipo = consulta.Equipo.NombreEquipo
+        };
         if (_checklists.Count == 1)
         {
             _idChecklist = _checklists[0].IdChecklist;

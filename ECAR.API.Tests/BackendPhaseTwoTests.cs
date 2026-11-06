@@ -183,7 +183,8 @@ public class BackendPhaseTwoTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var consulta = Assert.IsType<ApiResponse<ConsultaQrDto>>(ok.Value).Data!;
         Assert.Equal(equipo.CodigoInterno, consulta.Equipo.CodigoInterno);
-        Assert.Null(consulta.Equipo.QRCode); // el token no se expone en la respuesta pública
+        var json = System.Text.Json.JsonSerializer.Serialize(consulta);
+        Assert.DoesNotContain(token, json); // el token no se expone en la respuesta pública
         Assert.Single(consulta.ChecklistsActivos);
         Assert.Equal(activo.IdChecklist, consulta.ChecklistsActivos[0].IdChecklist);
     }
