@@ -11,7 +11,7 @@
     </TitleContent>
     <DialogContent>
         <MudForm @ref="form">
-            <MudAutocomplete T="EquipoDto" Label="Equipo" @bind-Value="equipoSeleccionado"
+            <MudAutocomplete AdornmentAriaLabel="Mostrar opciones" T="EquipoDto" Label="Equipo" @bind-Value="equipoSeleccionado"
                 SearchFunc="BuscarEquiposAsync" ToStringFunc="@(e => e == null ? string.Empty : $"{e.CodigoInterno} - {e.NombreEquipo}")"
                 Variant="Variant.Outlined" Required="true" RequiredError="El equipo es requerido"
                 MinCharacters="0" MaxItems="@MaxResultadosBusqueda" ResetValueOnEmptyText="true"

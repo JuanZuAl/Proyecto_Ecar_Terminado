@@ -19,7 +19,7 @@
                                   DebounceInterval="400" OnDebounceIntervalElapsed="OnSearchChanged" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudAutocomplete T="InspeccionDto" Label="Filtrar por inspección" @bind-Value="inspeccionSeleccionada"
+                    <MudAutocomplete AdornmentAriaLabel="Mostrar opciones" T="InspeccionDto" Label="Filtrar por inspección" @bind-Value="inspeccionSeleccionada"
                                      @bind-Value:after="OnInspeccionChanged"
                                      SearchFunc="BuscarInspeccionesAsync" ToStringFunc="@(i => i == null ? string.Empty : $"#{i.IdInspeccion} - {i.NombreEquipo}")"
                                      Variant="Variant.Outlined"

@@ -8,7 +8,7 @@
        <BuscadorMultiple TItem="EquipoDto" Label="Equipos" SearchFunc="BuscarEquiposAsync"
                          ToStringFunc="@(e => e == null ? "" : e.CodigoInterno)" Clave="@(e => e.IdEquipo)"
                          Seleccionados="equiposSeleccionados" /> *@
-<MudAutocomplete @ref="buscador" T="TItem" Label="@Label" Value="@seleccionActual" ValueChanged="AgregarAsync"
+<MudAutocomplete AdornmentAriaLabel="Mostrar opciones" @ref="buscador" T="TItem" Label="@Label" Value="@seleccionActual" ValueChanged="AgregarAsync"
                  SearchFunc="SearchFunc" ToStringFunc="ToStringFunc" Variant="Variant.Outlined"
                  MinCharacters="0" MaxItems="20" ResetValueOnEmptyText="true"
                  HelperText="@(Seleccionados.Count == 0 ? HelperText : Texto.Cantidad(Seleccionados.Count, "elegido", "elegidos"))" />
