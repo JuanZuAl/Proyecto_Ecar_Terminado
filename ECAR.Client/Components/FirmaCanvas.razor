@@ -2,7 +2,11 @@
 @inject ISnackbar Snackbar
 
 <div class="firma-container d-flex flex-column align-center">
-    <canvas @ref="canvasRef" width="340" height="200" style="max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 8px; touch-action: none; background-color: white;"></canvas>
+    @* La guía («Firme aquí» y una línea) va sobre el lienzo, sin tocarlo: lo que se firma es el lienzo, no la guía. *@
+    <div class="firma-lienzo">
+        <canvas @ref="canvasRef" width="340" height="200" style="max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 12px; touch-action: none; background-color: white; box-shadow: var(--sombra-1);"></canvas>
+        <div class="firma-guia" aria-hidden="true"><span>Firme aquí</span></div>
+    </div>
     
     <div class="mt-4 d-flex gap-4">
         <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="LimpiarFirma">

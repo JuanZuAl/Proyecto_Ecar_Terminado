@@ -234,16 +234,15 @@
 </MudContainer>
 
 <style>
+/* Sin fondo ni altura propios: el fondo es el del layout, de borde a borde. Un degradado en este contenedor
+   dejaba una banda de otro tono a un lado de la pantalla. */
 .home-container {
-    padding: 2rem;
-    background: linear-gradient(135deg, #F4F5F7 0%, #E9EBF0 100%);
-    min-height: 100vh;
+    padding: 0;
 }
 
 .tablero-titulo {
-    color: #16438C;
-    margin-bottom: 1rem;
-    font-weight: 700;
+    color: var(--titulo);
+    margin-bottom: 0.25rem;
 }
 
 .tablero-cabecera {
@@ -261,12 +260,41 @@
     align-items: center;
     padding: 1.25rem;
     height: 100%;
-    background: white;
+    background: var(--surface);
 }
 
+/* El icono va en un recuadro tonal del color del indicador, no suelto y enorme. */
 .indicador .mud-icon-root {
-    font-size: 2.5rem;
+    box-sizing: content-box;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0.75rem;
+    border-radius: 14px;
     flex-shrink: 0;
+    background-color: var(--primary-tint);
+}
+
+.indicador .mud-icon-root.mud-success-text {
+    background-color: var(--tinte-exito-fondo);
+}
+
+.indicador .mud-icon-root.mud-warning-text {
+    background-color: var(--tinte-aviso-fondo);
+}
+
+.indicador .mud-icon-root.mud-error-text {
+    background-color: var(--tinte-error-fondo);
+}
+
+.indicador .mud-typography-h4 {
+    color: var(--ink);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.indicador .mud-typography-body2 {
+    color: var(--ink);
+    font-weight: 500;
 }
 
 .barra-fila {
@@ -293,11 +321,11 @@
 .tablero-filtros {
     padding: 0.75rem 1rem;
     margin-bottom: 1.5rem;
-    background: white;
+    background: var(--surface);
 }
 
 .tendencia {
-    background: white;
+    background: var(--surface);
 }
 
 .tendencia-grafica {
@@ -313,8 +341,16 @@
 }
 
 @@media (max-width: 600px) {
-    .home-container {
-        padding: 1rem 0.5rem;
+    .indicador {
+        padding: 0.875rem 1rem;
+        gap: 0.75rem;
+    }
+
+    .indicador .mud-icon-root {
+        width: 1.375rem;
+        height: 1.375rem;
+        padding: 0.625rem;
+        border-radius: 12px;
     }
 
     .tablero-acciones,

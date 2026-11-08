@@ -1,6 +1,6 @@
 ﻿.qr-page {
 min-height: 100vh;
-background-color: #f4f6f8;
+background-color: var(--background);
 display: flex;
 align-items: flex-start;
 justify-content: center;
@@ -25,8 +25,8 @@ gap: 1rem;
 }
 
 .qr-logo {
-max-height: 56px;
-width: auto;
+height: 84px;
+width: 84px;
 object-fit: contain;
 }
 

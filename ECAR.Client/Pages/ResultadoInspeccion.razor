@@ -49,7 +49,8 @@
             <MudDivider Class="mb-4" />
 
             <!-- Resumen de Datos -->
-            <MudGrid Spacing="3" Class="mb-4">
+            <div class="ficha-datos">
+            <MudGrid Spacing="3">
                 <MudItem xs="12" sm="6">
                     <MudText Typo="Typo.body2"><b>Equipo:</b> @resultado.NombreEquipo (@resultado.CodigoInterno)</MudText>
                     <MudText Typo="Typo.body2"><b>Ubicación:</b> @(string.IsNullOrWhiteSpace(resultado.UbicacionNombre) ? "Sin ubicación" : resultado.UbicacionNombre)</MudText>
@@ -61,6 +62,7 @@
                     <MudText Typo="Typo.body2"><b>Inspector responsable:</b> @resultado.NombreUsuario</MudText>
                 </MudItem>
             </MudGrid>
+            </div>
 
             <!-- Bloque de Auditoría y Hash (SHA-256) - Visible solo para Supervisor/Administrador -->
             @if (_puedeVerHash)

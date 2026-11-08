@@ -7,10 +7,10 @@
 @using ECAR.Client.Services
 @using MudBlazor
 
-<MudContainer Class="login-container">
+<MudContainer MaxWidth="MaxWidth.False" Class="login-container">
     <MudPaper Class="login-paper" Elevation="8">
         <div class="logo-section">
-            <img src="images/logo-ecar.png" alt="ECAR Logo" class="logo-image" />
+            <img src="images/logo-ecar.png" alt="ECAR Laboratorios" class="logo-image" />
             <MudText Typo="Typo.h4" Class="ecar-title">Laboratorios ECAR</MudText>
             <MudText Typo="Typo.body1" Class="ecar-subtitle">Sistema de Auditoría de Equipos</MudText>
         </div>
@@ -70,44 +70,48 @@
 </MudContainer>
 
 <style>
+/* El fondo (dos manchas suaves con los colores del logo) lo pone el layout, de borde a borde: aquí solo se
+   centra la tarjeta. Antes el degradado vivía en un contenedor de 1280 px y a los lados quedaban franjas de
+   otro tono. */
 .login-container {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #F4F5F7 0%, #E9EBF0 100%);
-    padding: 2rem;
+    padding: 2rem 1rem;
 }
 
 .login-paper {
-    max-width: 450px;
+    max-width: 432px;
     width: 100%;
-    padding: 2.5rem;
-    border-radius: 16px;
-    background: white;
-    border: 2px solid #E0E6ED;
+    padding: 2.5rem 2.25rem 2rem;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--sombra-3);
 }
 
 .logo-section {
     text-align: center;
-    margin-bottom: 1rem;
-}
-
-.logo-image {
-    max-height: 80px;
-    margin-bottom: 1rem;
-    border-radius: 8px;
-}
-
-.ecar-title {
-    color: #16438C;
-    font-weight: 700;
     margin-bottom: 0.5rem;
 }
 
+.logo-image {
+    height: 112px;
+    width: 112px;
+    margin-bottom: 0.75rem;
+}
+
+.ecar-title {
+    color: var(--titulo);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.25rem;
+}
+
 .ecar-subtitle {
-    color: #79B75D;
-    margin-top: 0.5rem;
+    color: var(--secondary);
+    margin-top: 0.25rem;
     font-weight: 500;
 }
 
@@ -119,21 +123,9 @@
 
 .login-button {
     height: 48px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    background-color: #397FDE !important;
-    color: white !important;
+    font-size: 1rem;
+    font-weight: 500;
     border-radius: 12px !important;
-    border: none !important;
-    box-shadow: 0 4px 12px rgba(57, 127, 222, 0.3);
-    transition: all 0.3s ease;
-}
-
-.login-button:hover {
-    background-color: #2A5FB8 !important;
-    box-shadow: 0 6px 16px rgba(57, 127, 222, 0.4);
-    transform: translateY(-2px);
 }
 
 .footer {
@@ -141,8 +133,19 @@
 }
 
 .footer-text {
-    color: #5A6A7C;
-    opacity: 0.8;
+    color: var(--text-secondary);
+}
+
+@@media (max-width: 480px) {
+    .login-paper {
+        padding: 1.75rem 1.25rem 1.5rem;
+        border-radius: 16px;
+    }
+
+    .logo-image {
+        height: 96px;
+        width: 96px;
+    }
 }
 </style>
 

@@ -4,6 +4,7 @@
 
 <MudCard Class="pa-4 mb-4">
     <MudText Typo="Typo.h6" Class="mb-3">Resumen antes de firmar</MudText>
+    <div class="ficha-datos mb-0">
     <MudGrid>
         <MudItem xs="12" sm="6">
             <MudText Typo="Typo.body2"><b>Equipo:</b> @Inspeccion.NombreEquipo</MudText>
@@ -15,6 +16,7 @@
             <MudText Typo="Typo.body2"><b>Evidencias:</b> @Texto.Cantidad(Inspeccion.Evidencias.Count, "fotografía", "fotografías")</MudText>
         </MudItem>
     </MudGrid>
+    </div>
 </MudCard>
 
 <MudAlert Severity="Severity.Warning" Class="mb-4 text-justify">

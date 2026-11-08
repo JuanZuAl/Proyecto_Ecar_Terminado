@@ -77,10 +77,21 @@ else
 }
 
 <style>
+    /* Cada pregunta es una tarjeta: se distingue una de otra de un vistazo al desplazarse. */
     .pregunta-bloque {
-        padding-bottom: 16px;
+        padding: 16px 18px 18px;
         margin-bottom: 16px;
-        border-bottom: 1px solid #E0E6ED;
+        background-color: var(--surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radio-grande);
+        box-shadow: var(--sombra-1);
+    }
+
+    /* «¿Presenta novedad?» es la pregunta de segundo nivel: más discreta que el enunciado. */
+    .pregunta-bloque > .mt-2 .sino-etiqueta {
+        font-size: 0.875rem;
+        font-weight: 400;
+        color: var(--text-secondary);
     }
 </style>
 

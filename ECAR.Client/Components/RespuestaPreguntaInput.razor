@@ -2,7 +2,7 @@
 
 @if (TipoRespuesta == TiposRespuesta.SiNo)
 {
-    <MudText Typo="Typo.caption" Class="mb-1">@Label</MudText>
+    <MudText Typo="Typo.body2" Class="sino-etiqueta">@Label</MudText>
     @* role="radio" + tabindex: se recorre con Tab y se marca con Enter o la barra espaciadora. *@
     <div class="sino-casillas" role="radiogroup" aria-label="@Label">
         @foreach (var opcion in Opciones)
@@ -77,31 +77,45 @@ else
     gap: 12px;
 }
 
+/* El enunciado de la pregunta: legible, no una nota al margen. */
+.sino-etiqueta {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--ink);
+}
+
+/* Área táctil de 46 px: se usa de pie junto al equipo, con el dedo. */
 .sino-casilla {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex: 1;
+    min-height: 46px;
     padding: 10px 14px;
-    border: 1px solid #E0E6ED;
-    border-radius: 8px;
-    background-color: #FFFFFF;
+    border: 1px solid var(--border);
+    border-radius: var(--radio);
+    background-color: var(--surface);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
     user-select: none;
 }
 
 .sino-casilla:hover {
-    border-color: #397FDE;
+    border-color: var(--primary);
+    background-color: #F7FAFE;
 }
 
 .sino-casilla:focus-visible {
-    outline: 2px solid #397FDE;
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 
 .sino-seleccionada {
-    border-color: #397FDE;
-    background-color: #EEF4FC;
+    border-color: var(--primary);
+    background-color: var(--primary-tint);
+    font-weight: 500;
 }
 </style>

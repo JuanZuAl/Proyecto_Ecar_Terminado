@@ -11,7 +11,7 @@
     <MudFileUpload T="IBrowserFile" @ref="fileUpload" Accept="image/*" capture="environment"
         Disabled="Subiendo" FilesChanged="OnArchivoSeleccionadoAsync">
         <CustomContent Context="fileUploadContext">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="Subiendo"
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="Subiendo" Class="subir-foto"
                 StartIcon="@Icons.Material.Filled.AddAPhoto" OnClick="@fileUploadContext.OpenFilePickerAsync">
                 Agregar fotografía
             </MudButton>
