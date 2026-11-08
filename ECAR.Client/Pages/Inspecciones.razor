@@ -47,7 +47,7 @@
             }
             else if (inspecciones != null && inspecciones.Any())
             {
-                <MudTable Items="inspecciones" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md">
+                <MudTable Items="inspecciones" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md" Class="tabla-compacta">
                     <HeaderContent>
                         <MudTh>ID</MudTh>
                         <MudTh>Equipo</MudTh>
@@ -57,8 +57,7 @@
                         <MudTh>Resultado</MudTh>
                         <MudTh>Firma</MudTh>
                         <MudTh>Evidencias</MudTh>
-                        <MudTh>Novedades totales</MudTh>
-                        <MudTh>Novedades pendientes</MudTh>
+                        <MudTh>Novedades</MudTh>
                         <MudTh Class="col-acciones">Acciones</MudTh>
                     </HeaderContent>
                     <RowTemplate>
@@ -81,15 +80,14 @@
                                 Color="@(context.TieneFirma ? Color.Success : Color.Default)" Size="Size.Small" />
                         </MudTd>
                         <MudTd DataLabel="Evidencias">@context.TotalEvidencias</MudTd>
-                        <MudTd DataLabel="Novedades totales">@context.TotalNovedades</MudTd>
-                        <MudTd DataLabel="Novedades pendientes">
+                        @* Total y, si las hay, cuántas siguen pendientes: en una sola columna la tabla cabe sin desplazarse (M-02). *@
+                        <MudTd DataLabel="Novedades">
+                            <span>@context.TotalNovedades</span>
                             @if (context.NovedadesPendientes > 0)
                             {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Text="@context.NovedadesPendientes.ToString()" />
-                            }
-                            else
-                            {
-                                <span>0</span>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Class="ml-1 my-0"
+                                         Text="@($"{context.NovedadesPendientes} pend.")"
+                                         title="@($"Novedades pendientes: {context.NovedadesPendientes} de {context.TotalNovedades}")" />
                             }
                         </MudTd>
                         <MudTd DataLabel="Acciones" Class="col-acciones">
