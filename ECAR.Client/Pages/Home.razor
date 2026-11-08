@@ -65,11 +65,11 @@
                 </MudItem>
                 @if (periodo == PeriodoRango)
                 {
-                    <MudItem xs="6" sm="3" md="2">
+                    <MudItem xs="12" sm="3" md="2">
                         <MudDatePicker Label="Desde" Date="@rangoDesde" DateChanged="CambiarDesdeAsync" Variant="Variant.Outlined"
                                        Editable="true" DateFormat="dd/MM/yyyy" MaxDate="@Hoy" />
                     </MudItem>
-                    <MudItem xs="6" sm="3" md="2">
+                    <MudItem xs="12" sm="3" md="2">
                         <MudDatePicker Label="Hasta" Date="@rangoHasta" DateChanged="CambiarHastaAsync" Variant="Variant.Outlined"
                                        Editable="true" DateFormat="dd/MM/yyyy" MaxDate="@Hoy" />
                     </MudItem>

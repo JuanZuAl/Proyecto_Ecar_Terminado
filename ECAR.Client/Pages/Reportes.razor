@@ -42,11 +42,11 @@
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoEquipo.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoEquipo.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoEquipo.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoEquipo.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         @BotonesConsulta(() => ConsultarAsync(estadoEquipo, ReporteTipos.HistorialEquipo),
                             f => DescargarAsync(estadoEquipo, ReporteTipos.HistorialEquipo, f), estadoEquipo)
@@ -128,11 +128,11 @@
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoArea.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoArea.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoArea.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoArea.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         @BotonesConsulta(() => ConsultarAsync(estadoArea, ReporteTipos.HistorialArea),
                             f => DescargarAsync(estadoArea, ReporteTipos.HistorialArea, f), estadoArea)
@@ -196,11 +196,11 @@
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoUsuario.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoUsuario.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoUsuario.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoUsuario.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         @BotonesConsulta(() => ConsultarAsync(estadoUsuario, ReporteTipos.HistorialUsuario),
                             f => DescargarAsync(estadoUsuario, ReporteTipos.HistorialUsuario, f), estadoUsuario)
@@ -276,11 +276,11 @@
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoNovedades.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoNovedades.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoNovedades.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoNovedades.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         @BotonesConsulta(() => ConsultarAsync(estadoNovedades, ReporteTipos.EquiposNovedades),
                             f => DescargarAsync(estadoNovedades, ReporteTipos.EquiposNovedades, f), estadoNovedades)
@@ -362,11 +362,11 @@
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="filtroFechas.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="filtroFechas.Desde" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="filtroFechas.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="filtroFechas.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         <MudItem xs="12" Class="d-flex flex-wrap gap-2 justify-end">
                             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
