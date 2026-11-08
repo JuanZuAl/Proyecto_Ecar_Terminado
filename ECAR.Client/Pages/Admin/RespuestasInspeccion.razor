@@ -40,23 +40,20 @@
                         <MudTh>Inspección</MudTh>
                         <MudTh>Pregunta</MudTh>
                         <MudTh>Respuesta</MudTh>
+                        <MudTh>¿Presenta novedad?</MudTh>
                         <MudTh>Observación</MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd>@context.IdRespuesta.ToString()</MudTd>
                         <MudTd>@context.IdInspeccion.ToString()</MudTd>
                         <MudTd>@context.IdPregunta.ToString()</MudTd>
-                        <MudTd>@FormatoRespuesta.Mostrar(context.Respuesta)</MudTd>
+                        @* Desde el 04/11/2026 una pregunta Sí/No se responde solo con «¿Presenta novedad?». *@
+                        <MudTd>@(string.IsNullOrWhiteSpace(context.Respuesta) ? "—" : FormatoRespuesta.Mostrar(context.Respuesta))</MudTd>
                         <MudTd>
-                            @if (!string.IsNullOrWhiteSpace(context.Observacion))
-                            {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">@context.Observacion</MudChip>
-                            }
-                            else
-                            {
-                                <MudChip T="string" Color="Color.Default" Size="Size.Small">Sin novedad</MudChip>
-                            }
+                            <MudChip T="string" Size="Size.Small" Color="@(context.PresentaNovedad == true ? Color.Warning : Color.Default)"
+                                     Text="@(context.PresentaNovedad switch { true => "Sí", false => "No", _ => "—" })" />
                         </MudTd>
+                        <MudTd>@(string.IsNullOrWhiteSpace(context.Observacion) ? "—" : context.Observacion)</MudTd>
                     </RowTemplate>
                 </MudTable>
 

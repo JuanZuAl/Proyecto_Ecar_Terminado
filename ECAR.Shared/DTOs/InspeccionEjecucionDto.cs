@@ -39,7 +39,8 @@ public class InspeccionEjecucionDto
     public List<EvidenciaDto> Evidencias { get; set; } = new();
 
     // --- Contadores calculados por el servidor ---
-    // El cliente los recalcula localmente tras cada guardado para refrescar la UI sin releer.
+    // El cliente los recalcula localmente tras cada guardado para refrescar la UI sin releer. Desde el 04/11/2026 las
+    // obligatorias son solo las que piden escribir una respuesta (TiposRespuesta.PideRespuesta).
     public int TotalObligatorias { get; set; }
     public int ObligatoriasRespondidas { get; set; }
     public int TotalNovedades { get; set; }
