@@ -101,9 +101,12 @@
     /// <summary>Índice del paso de firma: ahí no se muestra "Siguiente".</summary>
     private const int UltimoPaso = 2;
 
+    // Sin preguntas de texto obligatorias (lo normal desde el 04/11/2026) el resumen dice cuántas novedades hay.
     private string ResumenPreguntas => inspeccion == null
         ? string.Empty
-        : $"{inspeccion.ObligatoriasRespondidas} de {inspeccion.TotalObligatorias} obligatorias";
+        : inspeccion.TotalObligatorias > 0
+            ? $"{inspeccion.ObligatoriasRespondidas} de {inspeccion.TotalObligatorias} obligatorias"
+            : $"{inspeccion.TotalNovedades} novedad(es)";
 
     private string ResumenEvidencias => inspeccion == null
         ? string.Empty
@@ -180,7 +183,7 @@
             return;
         }
 
-        inspeccion.TotalObligatorias = inspeccion.Preguntas.Count(p => p.Obligatoria);
+        inspeccion.TotalObligatorias = inspeccion.Preguntas.Count(p => p.Obligatoria && TiposRespuesta.PideRespuesta(p.TipoRespuesta));
         inspeccion.ObligatoriasRespondidas = inspeccion.Preguntas.Count(p => p.Obligatoria && !p.FaltaResponder);
         inspeccion.TotalNovedades = inspeccion.Preguntas.Count(p => p.EsNovedad);
         StateHasChanged();
@@ -240,9 +243,9 @@
             return false;
         }
 
-        // «¿Presenta novedad?» no viene marcado: en cada pregunta respondida hay que elegir Sí o No (B-13).
-        var sinElegirNovedad = NumerosDe(inspeccion.Preguntas
-            .Where(p => !string.IsNullOrWhiteSpace(p.Respuesta) && p.PresentaNovedad == null));
+        // «¿Presenta novedad?» no viene marcado y es obligatorio elegir Sí o No en TODAS las preguntas (B-13). Desde el
+        // 04/11/2026 una Sí/No no tiene respuesta propia, así que no basta con mirar las respondidas.
+        var sinElegirNovedad = NumerosDe(inspeccion.Preguntas.Where(p => p.PresentaNovedad == null));
         if (sinElegirNovedad.Count > 0)
         {
             Snackbar.Add(sinElegirNovedad.Count == 1

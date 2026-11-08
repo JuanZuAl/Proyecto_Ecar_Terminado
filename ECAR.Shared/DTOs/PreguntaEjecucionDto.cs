@@ -36,6 +36,10 @@ public class PreguntaEjecucionDto
     /// </summary>
     public bool EsNovedad => PresentaNovedad == true;
 
-    /// <summary>true cuando la pregunta es obligatoria y todavía no tiene respuesta (regla 3 del SRS).</summary>
-    public bool FaltaResponder => Obligatoria && string.IsNullOrWhiteSpace(Respuesta);
+    /// <summary>
+    /// true cuando la pregunta es obligatoria y todavía no tiene respuesta (regla 3 del SRS). Desde el 04/11/2026 solo
+    /// pasa en las de texto: una Sí/No se responde con «¿Presenta novedad?», que sin marcar es «No».
+    /// </summary>
+    public bool FaltaResponder =>
+        Obligatoria && TiposRespuesta.PideRespuesta(TipoRespuesta) && string.IsNullOrWhiteSpace(Respuesta);
 }

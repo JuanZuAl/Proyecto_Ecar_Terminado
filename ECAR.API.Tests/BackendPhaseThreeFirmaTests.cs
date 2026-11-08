@@ -258,11 +258,18 @@ public class BackendPhaseThreeFirmaTests
 
     // ---------------------------------------------------------------- validaciones
 
+    /// <summary>
+    /// Desde el 04/11/2026 «Obligatoria» solo cuenta en las preguntas de texto: una Sí/No se responde con «¿Presenta
+    /// novedad?», que sin marcar es «No».
+    /// </summary>
     [Fact]
-    public async Task Firmar_RechazaCuandoFaltaUnaObligatoria()
+    public async Task Firmar_RechazaCuandoFaltaUnaObligatoriaDeTexto()
     {
         await using var context = CreateContext();
         var escenario = await SeedAsync(context);
+        var texto = await context.PreguntasChecklist.SingleAsync(p => p.IdPregunta == escenario.PreguntaTexto.IdPregunta);
+        texto.Obligatoria = true;
+        await context.SaveChangesAsync();
         var inspeccion = await CrearInspeccionAsync(escenario);
         var controller = ControladorDe(escenario, escenario.Tecnico);
 
@@ -275,8 +282,9 @@ public class BackendPhaseThreeFirmaTests
         var badRequest = Assert.IsType<BadRequestObjectResult>(action.Result);
         var response = Assert.IsType<ApiResponse<InspeccionResultadoDto>>(badRequest.Value);
         Assert.False(response.Success);
+        // Solo la de texto: la Sí/No obligatoria sin tocar no falta.
         var error = Assert.Single(response.Errors!);
-        Assert.Contains(escenario.PreguntaSiNo.Pregunta, error);
+        Assert.Contains(escenario.PreguntaTexto.Pregunta, error);
 
         var guardada = await context.Inspecciones.AsNoTracking()
             .SingleAsync(i => i.IdInspeccion == inspeccion.IdInspeccion);
@@ -431,6 +439,81 @@ public class BackendPhaseThreeFirmaTests
 
         Assert.NotEqual(cerrada.FirmaHash, await verificador.CalcularSelloAsync(cerrada));
         Assert.False(await verificador.VerificarAsync(cerrada));
+    }
+
+    // ---------------------------------------------------------------- solo «¿Presenta novedad?» (04/11/2026)
+
+    [Fact]
+    public async Task Firmar_sin_tocar_las_preguntas_SiNo_las_registra_en_No_y_queda_Satisfactorio()
+    {
+        await using var context = CreateContext();
+        var escenario = await SeedAsync(context);
+        // La pantalla ya no tiene el Sí/No de la pregunta y solo guarda lo que se toca: nada guardado.
+        var inspeccion = await CrearInspeccionAsync(escenario);
+        var controller = ControladorDe(escenario, escenario.Tecnico);
+
+        var action = await controller.FirmarConPassword(context, inspeccion.IdInspeccion, new FirmarInspeccionDto
+        {
+            Password = Fabrica.ClaveFirma,
+            FirmaPngBase64 = FirmaPngValida
+        });
+
+        Assert.IsType<OkObjectResult>(action.Result);
+        var cerrada = await context.Inspecciones.AsNoTracking()
+            .Include(i => i.Respuestas)
+            .Include(i => i.Evidencias)
+            .SingleAsync(i => i.IdInspeccion == inspeccion.IdInspeccion);
+        Assert.Equal(InspeccionEstados.Cerrada, cerrada.Estado);
+        Assert.Equal(InspeccionResultados.Satisfactorio, cerrada.Resultado);
+        // La Sí/No queda en «No» de forma explícita y sin respuesta propia; la de texto opcional, sin fila.
+        var registrada = Assert.Single(cerrada.Respuestas);
+        Assert.Equal(escenario.PreguntaSiNo.IdPregunta, registrada.IdPregunta);
+        Assert.False(registrada.PresentaNovedad);
+        Assert.Null(registrada.Respuesta);
+        // El sello se calculó con esa fila: la verificación pasa.
+        Assert.True(await FirmaPruebas.CrearVerificador(new FakeEvidenciaStorage()).VerificarAsync(cerrada));
+    }
+
+    [Fact]
+    public async Task Marcar_presenta_novedad_sin_responder_la_pregunta_crea_la_novedad()
+    {
+        await using var context = CreateContext();
+        var escenario = await SeedAsync(context);
+        var inspeccion = await CrearInspeccionAsync(escenario, new RespuestaInspeccion
+        {
+            IdPregunta = escenario.PreguntaSiNo.IdPregunta,
+            PresentaNovedad = true,
+            Observacion = "Golpe en la carcasa"
+        });
+        var controller = ControladorDe(escenario, escenario.Tecnico);
+
+        var action = await controller.FirmarConPassword(context, inspeccion.IdInspeccion, new FirmarInspeccionDto
+        {
+            Password = Fabrica.ClaveFirma,
+            FirmaPngBase64 = FirmaPngValida
+        });
+
+        Assert.IsType<OkObjectResult>(action.Result);
+        var novedad = await context.Novedades.AsNoTracking().SingleAsync();
+        Assert.Equal(escenario.PreguntaSiNo.IdPregunta, novedad.IdPregunta);
+        Assert.Equal(InspeccionEstados.NovedadesPendientes,
+            (await context.Inspecciones.AsNoTracking().SingleAsync(i => i.IdInspeccion == inspeccion.IdInspeccion)).Estado);
+    }
+
+    [Fact]
+    public async Task La_ejecucion_no_cuenta_como_obligatoria_pendiente_una_pregunta_SiNo()
+    {
+        await using var context = CreateContext();
+        var escenario = await SeedAsync(context);
+        var inspeccion = await CrearInspeccionAsync(escenario);
+        var controller = ControladorDe(escenario, escenario.Tecnico);
+
+        var ok = Assert.IsType<OkObjectResult>((await controller.GetEjecucion(inspeccion.IdInspeccion)).Result);
+        var ejecucion = Assert.IsType<ApiResponse<InspeccionEjecucionDto>>(ok.Value).Data!;
+
+        Assert.Equal(0, ejecucion.TotalObligatorias);
+        Assert.True(ejecucion.PuedeFirmar);
+        Assert.DoesNotContain(ejecucion.Preguntas, p => p.FaltaResponder);
     }
 
     // ---------------------------------------------------------------- inmutabilidad

@@ -8,11 +8,13 @@
 
    Desde el 29/10/2026 (decisión de ECAR):
    - arriba se elige la sede (Rionegro o Medellín), obligatoria para firmar;
-   - cada pregunta tiene, además de su Sí/No, «¿Presenta novedad?» (Sí/No). Es lo único que crea una
-     novedad al firmar: responder «No» a la pregunta ya no lo hace.
+   - cada pregunta tiene «¿Presenta novedad?» (Sí/No). Es lo único que crea una novedad al firmar.
+   Desde el 04/11/2026 una pregunta Sí/No ya no tiene su propio Sí/No: se responde solo con «¿Presenta
+   novedad?». Las preguntas de texto que quedan de checklists anteriores siguen con su campo.
 
-   Sin nada marcado de fábrica (B-13): el inspector elige Sí o No en cada pregunta que responde. Lo que no
-   elige se guarda como «sin marcar» (null), no como «No», y «Siguiente» no deja avanzar hasta que lo elija.
+   Sin nada marcado de fábrica (B-13, confirmado el 07/11/2026): el inspector tiene que elegir Sí o No en
+   «¿Presenta novedad?» de CADA pregunta. Lo que no elige se guarda como «sin marcar» (null), no como «No», y
+   «Siguiente» no deja avanzar hasta que lo elija. Si elige Sí, la observación es obligatoria.
 
    La Observación está siempre visible y solo es obligatoria cuando «¿Presenta novedad?» es Sí
    (regla 4 del SRS). Si se mostrara solo en novedad, al pasar de Sí a No el campo desaparecería
@@ -51,10 +53,17 @@ else
     @foreach (var pregunta in Inspeccion.Preguntas)
     {
         <div class="pregunta-bloque">
-        <RespuestaPreguntaInput Label="@(pregunta.Obligatoria ? pregunta.Pregunta + " *" : pregunta.Pregunta)"
-                                 TipoRespuesta="@pregunta.TipoRespuesta"
-                                 Valor="@pregunta.Respuesta"
-                                 ValorChanged="(nuevoValor) => OnRespuestaCambiada(pregunta, nuevoValor)" />
+        @if (TiposRespuesta.PideRespuesta(pregunta.TipoRespuesta))
+        {
+            <RespuestaPreguntaInput Label="@(pregunta.Obligatoria ? pregunta.Pregunta + " *" : pregunta.Pregunta)"
+                                     TipoRespuesta="@pregunta.TipoRespuesta"
+                                     Valor="@pregunta.Respuesta"
+                                     ValorChanged="(nuevoValor) => OnRespuestaCambiada(pregunta, nuevoValor)" />
+        }
+        else
+        {
+            <MudText Typo="Typo.body1" Class="pregunta-texto">@pregunta.Pregunta</MudText>
+        }
 
         @* Sin nada marcado hasta que el inspector elige; volver a tocar la casilla marcada la desmarca. *@
         <div class="mt-2">
@@ -81,6 +90,11 @@ else
         padding-bottom: 16px;
         margin-bottom: 16px;
         border-bottom: 1px solid #E0E6ED;
+    }
+
+    .pregunta-texto {
+        font-weight: 500;
+        overflow-wrap: anywhere;
     }
 </style>
 

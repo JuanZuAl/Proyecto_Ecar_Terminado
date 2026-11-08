@@ -112,12 +112,15 @@
                                     </MudText>
                                 }
                             </td>
-                            @* La respuesta y el «¿Presenta novedad?» (29/10/2026, es lo que creó la novedad) en una
-                               celda: lado a lado en pantalla ancha y uno bajo el otro en el teléfono. *@
+                            @* «¿Presenta novedad?» (29/10/2026, es lo que crea la novedad). La respuesta solo sale si la
+                               hay: desde el 04/11/2026 una pregunta Sí/No se responde solo con «¿Presenta novedad?». *@
                             <td style="width: 1%">
                                 <div class="d-flex flex-wrap justify-end gap-1">
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ma-0"
-                                             Text="@FormatoRespuesta.Mostrar(pregunta.Respuesta)" />
+                                    @if (!string.IsNullOrWhiteSpace(pregunta.Respuesta))
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ma-0"
+                                                 Text="@FormatoRespuesta.Mostrar(pregunta.Respuesta)" />
+                                    }
                                     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ma-0"
                                              Color="@(pregunta.EsNovedad ? Color.Warning : Color.Default)" title="¿Presenta novedad?"
                                              Text="@(pregunta.EsNovedad ? "Con novedad" : "Sin novedad")" />
