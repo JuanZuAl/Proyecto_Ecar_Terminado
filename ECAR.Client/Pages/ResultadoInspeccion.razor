@@ -97,7 +97,7 @@
 
             <!-- Tabla de Respuestas de la Checklist -->
             <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2"><b>Respuestas de la Checklist</b></MudText>
-            <MudSimpleTable Dense="true" Striped="true" Elevation="0" Class="mb-4">
+            <MudSimpleTable Dense="true" Striped="true" Elevation="0" Class="mb-4 tabla-respuestas">
                 <tbody>
                     @foreach (var pregunta in resultado.Preguntas.OrderBy(p => p.Orden))
                     {
@@ -139,7 +139,7 @@
                 }
                 else
                 {
-                    <MudGrid Spacing="2">
+                    <MudGrid Spacing="2" Class="evidencias-resultado">
                         @foreach (var evidencia in resultado.Evidencias)
                         {
                             <MudItem xs="6" sm="4" md="3">
@@ -197,6 +197,59 @@
     }
 </MudContainer>
 </RolRouteGuard>
+
+<style>
+    /* Teléfono: la pregunta usa el ancho de la fila y la respuesta y la novedad bajan debajo, alineadas con
+       ella; antes la respuesta se quedaba con la mitad del ancho y la pregunta con 90 px (M-07). */
+    @@media (max-width: 599.98px) {
+        .tabla-respuestas tbody tr {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .tabla-respuestas tbody td {
+            border-bottom: none !important;
+        }
+
+        .tabla-respuestas tbody td:nth-child(1) {
+            flex: 0 0 40px;
+        }
+
+        .tabla-respuestas tbody td:nth-child(2) {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .tabla-respuestas tbody td:nth-child(3) {
+            flex: 0 0 100%;
+            width: auto !important;
+            padding-top: 0;
+            padding-left: 40px;
+        }
+
+        .tabla-respuestas tbody td:nth-child(3) > div {
+            justify-content: flex-start !important;
+        }
+    }
+
+    /* La miniatura (y su marcador gris) se adapta al ancho de su tarjeta, hasta 150 px: con 150 px fijos se
+       salía del recuadro en la rejilla de dos columnas del teléfono y parecía tener un marco doble (M-07). */
+    .evidencias-resultado .mud-skeleton {
+        display: block;
+        width: 100% !important;
+        max-width: 150px;
+        height: auto !important;
+        aspect-ratio: 1 / 1;
+    }
+
+    .evidencias-resultado .mud-image {
+        width: 100%;
+        max-width: 150px;
+        height: auto;
+        aspect-ratio: 1 / 1;
+    }
+</style>
 
 @code {
     [Parameter]
