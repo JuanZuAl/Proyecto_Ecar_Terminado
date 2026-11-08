@@ -106,7 +106,7 @@
         ? string.Empty
         : inspeccion.TotalObligatorias > 0
             ? $"{inspeccion.ObligatoriasRespondidas} de {inspeccion.TotalObligatorias} obligatorias"
-            : $"{inspeccion.TotalNovedades} novedad(es)";
+            : Texto.Cantidad(inspeccion.TotalNovedades, "novedad", "novedades");
 
     private string ResumenEvidencias => inspeccion == null
         ? string.Empty
