@@ -83,13 +83,11 @@ public static class DataSeeder
             new CategoriaEquipo { Nombre = "Equipos de Producción", Descripcion = "Maquinaria de línea de producción" },
             new CategoriaEquipo { Nombre = "Servicios Industriales", Descripcion = "Compresores, calderas, HVAC" }
         };
-        var existingCategoryNames = await context.CategoriasEquipo.Select(c => c.Nombre).ToListAsync();
-        var missingCategories = requiredCategories
-            .Where(required => !existingCategoryNames.Contains(required.Nombre, StringComparer.OrdinalIgnoreCase))
-            .ToList();
-        if (missingCategories.Count > 0)
+        // Categorías y ubicaciones de ejemplo: solo en una tabla vacía, es decir, en la primera instalación (08/11/2026).
+        // Antes se volvían a crear en cada arranque las que faltaran, así que el Administrador no podía borrarlas.
+        if (!await context.CategoriasEquipo.AnyAsync())
         {
-            await context.CategoriasEquipo.AddRangeAsync(missingCategories);
+            await context.CategoriasEquipo.AddRangeAsync(requiredCategories);
             await context.SaveChangesAsync();
         }
 
@@ -99,17 +97,9 @@ public static class DataSeeder
             new Ubicacion { Planta = "Planta Principal", Area = "Control de Calidad", Descripcion = "Laboratorio de QC" },
             new Ubicacion { Planta = "Planta Principal", Area = "Almacén", Descripcion = "Bodega de insumos y producto terminado" }
         };
-        var existingLocations = await context.Ubicaciones
-            .Select(u => new { u.Planta, u.Area })
-            .ToListAsync();
-        var missingLocations = requiredLocations
-            .Where(required => !existingLocations.Any(existing =>
-                string.Equals(existing.Planta, required.Planta, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(existing.Area, required.Area, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-        if (missingLocations.Count > 0)
+        if (!await context.Ubicaciones.AnyAsync())
         {
-            await context.Ubicaciones.AddRangeAsync(missingLocations);
+            await context.Ubicaciones.AddRangeAsync(requiredLocations);
             await context.SaveChangesAsync();
         }
     }

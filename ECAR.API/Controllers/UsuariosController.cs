@@ -19,6 +19,8 @@ namespace ECAR.API.Controllers;
 public class UsuariosController : ControllerBase
 {
     private readonly ECARDbContext _context;
+    public const string MensajeAlMenosUnRol = "Asigne al menos un rol al usuario";
+
     public const string MensajeSinCambioPassword =
         "Las contraseñas no se cambian ni se restablecen en este sistema: las administra la API externa de contraseñas";
 
@@ -132,18 +134,21 @@ public class UsuariosController : ControllerBase
             return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse("El usuario de Active Directory ya está registrado"));
         }
 
+        // Sin rol, el usuario entraría y recibiría 403 en todas las pantallas (prueba integral del 08/11/2026).
         var roleIds = (createDto.RoleIds ?? []).Distinct().ToList();
-        if (roleIds.Count > 0)
+        if (roleIds.Count == 0)
         {
-            var existingRoleIds = await _context.Roles
-                .Where(r => roleIds.Contains(r.IdRol))
-                .Select(r => r.IdRol)
-                .ToListAsync();
+            return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse(MensajeAlMenosUnRol));
+        }
 
-            if (existingRoleIds.Count != roleIds.Count)
-            {
-                return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse("Uno o más roles seleccionados no existen"));
-            }
+        var existingRoleIds = await _context.Roles
+            .Where(r => roleIds.Contains(r.IdRol))
+            .Select(r => r.IdRol)
+            .ToListAsync();
+
+        if (existingRoleIds.Count != roleIds.Count)
+        {
+            return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse("Uno o más roles seleccionados no existen"));
         }
 
         var tienePasswordLocal = !string.IsNullOrWhiteSpace(createDto.Password);
@@ -231,6 +236,11 @@ public class UsuariosController : ControllerBase
         if (updateDto.RoleIds != null)
         {
             roleIds = updateDto.RoleIds.Distinct().ToList();
+            if (roleIds.Count == 0)
+            {
+                return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse(MensajeAlMenosUnRol));
+            }
+
             var validRoleIds = await _context.Roles
                 .Where(r => roleIds.Contains(r.IdRol))
                 .Select(r => r.IdRol)

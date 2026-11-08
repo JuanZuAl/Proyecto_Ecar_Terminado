@@ -30,13 +30,17 @@ public class BackendPhaseOneTests
     public async Task ActiveDirectoryUserCanBeCreatedWithoutLocalPassword()
     {
         await using var context = CreateContext();
+        var rol = new Rol { Nombre = "Operador" };
+        context.Roles.Add(rol);
+        await context.SaveChangesAsync();
         var controller = Fabrica.Usuarios(context);
 
         var result = await controller.CreateUsuario(new CreateUsuarioDto
         {
             Nombre = "Usuario Directorio",
             Correo = "directorio@ecar.com",
-            UsuarioAD = "usuario.directorio"
+            UsuarioAD = "usuario.directorio",
+            RoleIds = [rol.IdRol]
         });
 
         Assert.IsType<CreatedAtActionResult>(result.Result);
@@ -136,7 +140,9 @@ public class BackendPhaseOneTests
             Activo = true
         };
         var assignment = new UsuarioRol { Usuario = firstUser, Rol = auditor };
-        context.AddRange(assignment, secondUser, tecnico);
+        // El primer usuario tiene otro rol: pasar esta asignación al segundo no lo deja sin rol.
+        var otroRol = new UsuarioRol { Usuario = firstUser, Rol = tecnico };
+        context.AddRange(assignment, otroRol, secondUser);
         await context.SaveChangesAsync();
 
         var controller = new UsuariosRolController(context);
@@ -152,29 +158,113 @@ public class BackendPhaseOneTests
         Assert.Equal("Operador", response.Data.RolNombre);
     }
 
+    // ------------------------------------------------------------------ siempre al menos un rol (08/11/2026)
+
     [Fact]
-    public async Task SeederCompletesPartiallyPopulatedDatabase()
+    public async Task No_se_crea_un_usuario_sin_roles()
+    {
+        await using var context = CreateContext();
+
+        var result = await Fabrica.Usuarios(context).CreateUsuario(new CreateUsuarioDto
+        {
+            Nombre = "Sin rol",
+            Correo = "sinrol@ecar.com",
+            Password = "ClaveInicial2026"
+        });
+
+        var error = Assert.IsType<ApiResponse<UsuarioDto>>(Assert.IsType<BadRequestObjectResult>(result.Result).Value);
+        Assert.Equal(UsuariosController.MensajeAlMenosUnRol, error.Message);
+        Assert.False(await context.Usuarios.AnyAsync());
+    }
+
+    [Fact]
+    public async Task Editar_un_usuario_no_le_quita_todos_los_roles()
+    {
+        await using var context = CreateContext();
+        var usuario = new Usuario { Nombre = "Ana", Correo = "ana@ecar.com", PasswordHash = "hash", Activo = true };
+        usuario.UsuarioRoles.Add(new UsuarioRol { Rol = new Rol { Nombre = "Operador" } });
+        context.Usuarios.Add(usuario);
+        await context.SaveChangesAsync();
+
+        var result = await Fabrica.Usuarios(context).UpdateUsuario(usuario.IdUsuario, new UpdateUsuarioDto { RoleIds = [] });
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(1, await context.UsuarioRoles.CountAsync());
+    }
+
+    [Fact]
+    public async Task No_se_quita_ni_se_pasa_a_otro_el_unico_rol_de_un_usuario()
+    {
+        await using var context = CreateContext();
+        var operador = new Rol { Nombre = "Operador" };
+        var estandar = new Rol { Nombre = "Estándar" };
+        var ana = new Usuario { Nombre = "Ana", Correo = "ana@ecar.com", PasswordHash = "hash", Activo = true };
+        var luis = new Usuario { Nombre = "Luis", Correo = "luis@ecar.com", PasswordHash = "hash", Activo = true };
+        var unico = new UsuarioRol { Usuario = ana, Rol = operador };
+        var primero = new UsuarioRol { Usuario = luis, Rol = operador };
+        var segundo = new UsuarioRol { Usuario = luis, Rol = estandar };
+        context.AddRange(unico, primero, segundo);
+        await context.SaveChangesAsync();
+        var controller = new UsuariosRolController(context);
+
+        var quitarUnico = await controller.DeleteUsuarioRol(unico.Id);
+        var pasarUnico = await controller.UpdateUsuarioRol(unico.Id, new UpdateUsuarioRolDto { IdUsuario = luis.IdUsuario, IdRol = estandar.IdRol });
+        var cambiarDeRol = await controller.UpdateUsuarioRol(unico.Id, new UpdateUsuarioRolDto { IdUsuario = ana.IdUsuario, IdRol = estandar.IdRol });
+        var quitarUnoDeDos = await controller.DeleteUsuarioRol(segundo.Id);
+
+        Assert.Equal(UsuariosRolController.MensajeUnicoRol,
+            Assert.IsType<ApiResponse<bool>>(Assert.IsType<BadRequestObjectResult>(quitarUnico.Result).Value).Message);
+        Assert.IsType<BadRequestObjectResult>(pasarUnico.Result);
+        // Cambiar el rol sin cambiar de usuario sí se puede, y quitar uno de dos también.
+        Assert.IsType<OkObjectResult>(cambiarDeRol.Result);
+        Assert.IsType<OkObjectResult>(quitarUnoDeDos.Result);
+        Assert.Equal(1, await context.UsuarioRoles.CountAsync(ur => ur.IdUsuario == ana.IdUsuario));
+        Assert.Equal(1, await context.UsuarioRoles.CountAsync(ur => ur.IdUsuario == luis.IdUsuario));
+    }
+
+    // ------------------------------------------------------------------ datos de ejemplo (08/11/2026)
+
+    private static IConfiguration ConfiguracionSemilla() => new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?> { ["AdminPassword"] = "ClaveTemporalSegura123!" })
+        .Build();
+
+    [Fact]
+    public async Task El_seeder_completa_los_roles_pero_no_rellena_catalogos_que_ya_tienen_datos()
     {
         await using var context = CreateContext();
         context.Roles.Add(new Rol { Nombre = "Supervisor" });
         context.CategoriasEquipo.Add(new CategoriaEquipo { Nombre = "Instrumentación" });
         context.Ubicaciones.Add(new Ubicacion { Planta = "Planta Principal", Area = "Producción" });
         await context.SaveChangesAsync();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["AdminPassword"] = "ClaveTemporalSegura123!"
-            })
-            .Build();
 
-        await DataSeeder.SeedDataAsync(context, configuration);
-        await DataSeeder.SeedDataAsync(context, configuration);
+        await DataSeeder.SeedDataAsync(context, ConfiguracionSemilla());
+        await DataSeeder.SeedDataAsync(context, ConfiguracionSemilla());
 
         Assert.Equal(RolesSistema.DelSistema.OrderBy(r => r), (await context.Roles.Select(r => r.Nombre).ToListAsync()).OrderBy(r => r));
         Assert.Equal(1, await context.Usuarios.CountAsync(u => u.Correo == "admin@ecar.com"));
         Assert.Equal(1, await context.UsuarioRoles.CountAsync());
+        Assert.Equal(1, await context.CategoriasEquipo.CountAsync());
+        Assert.Equal(1, await context.Ubicaciones.CountAsync());
+    }
+
+    [Fact]
+    public async Task Los_datos_de_ejemplo_se_crean_solo_en_una_base_vacia_y_lo_borrado_no_vuelve()
+    {
+        await using var context = CreateContext();
+
+        await DataSeeder.SeedDataAsync(context, ConfiguracionSemilla());
         Assert.Equal(4, await context.CategoriasEquipo.CountAsync());
         Assert.Equal(3, await context.Ubicaciones.CountAsync());
+
+        // El Administrador borra un ejemplo que no usa y el API se reinicia.
+        context.Ubicaciones.Remove(await context.Ubicaciones.FirstAsync(u => u.Area == "Almacén"));
+        context.CategoriasEquipo.Remove(await context.CategoriasEquipo.FirstAsync(c => c.Nombre == "Servicios Industriales"));
+        await context.SaveChangesAsync();
+        await DataSeeder.SeedDataAsync(context, ConfiguracionSemilla());
+
+        Assert.Equal(3, await context.CategoriasEquipo.CountAsync());
+        Assert.Equal(2, await context.Ubicaciones.CountAsync());
+        Assert.False(await context.Ubicaciones.AnyAsync(u => u.Area == "Almacén"));
     }
 
     [Fact]

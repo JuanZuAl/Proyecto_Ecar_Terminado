@@ -127,7 +127,7 @@ public class NotificacionNovedadesTests
         using var mensaje = CorreoNovedad.Construir(inspeccion, inspeccion.Novedades.OrderBy(n => n.IdNovedad).ToList(),
             Opciones(), "https://ecar.test/");
 
-        Assert.Equal($"[ECAR] Inspección #{id} - 2 novedad(es) - BAL-1 Balanza", mensaje.Subject);
+        Assert.Equal($"[ECAR] Inspección #{id} - 2 novedades - BAL-1 Balanza", mensaje.Subject);
         Assert.Equal(Destinatario, mensaje.To.Single().Address);
         Assert.Equal("ecar@ecar.test", mensaje.From!.Address);
         foreach (var dato in new[] { "Se registraron 2 novedades", $"#{id} (Diario v. 1.0)", "BAL-1 - Balanza", "AF-1",

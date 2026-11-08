@@ -37,8 +37,10 @@
             <MudTextField T="string" Label="Usuario AD" @bind-Value="usuarioAD" 
                 Variant="Variant.Outlined" MaxLength="100" Immediate="true" Class="mb-3" />
 
-            <MudSelect T="long" Label="Roles" @bind-SelectedValues="selectedRoleIds" MultiSelection="true" 
-                Variant="Variant.Outlined" Class="mb-3"
+            @* Al menos un rol, como exige el API: sin rol el usuario entraría y no podría usar nada. *@
+            <MudSelect T="long" Label="Roles" @bind-SelectedValues="selectedRoleIds" @bind-SelectedValues:after="() => faltaRol = false"
+                MultiSelection="true" Variant="Variant.Outlined" Class="mb-3"
+                Error="@faltaRol" ErrorText="Elija al menos un rol"
                 ToStringFunc="@(id => availableRoles?.FirstOrDefault(r => r.IdRol == id)?.Nombre ?? id.ToString())">
                 @if (availableRoles != null)
                 {
@@ -78,6 +80,7 @@
     private string? usuarioAD;
     private bool activo = true;
     private IReadOnlyCollection<long> selectedRoleIds = new HashSet<long>();
+    private bool faltaRol;
     private List<RolDto>? availableRoles;
 
     // Reglas de la contraseña del alta: las que publica el API (api/auth/politica); mientras no respondan,
@@ -154,10 +157,12 @@
         if (form != null)
         {
             await form.ValidateAsync();
-            if (!form.IsValid)
-            {
-                return;
-            }
+        }
+
+        faltaRol = selectedRoleIds.Count == 0;
+        if ((form != null && !form.IsValid) || faltaRol)
+        {
+            return;
         }
 
         try

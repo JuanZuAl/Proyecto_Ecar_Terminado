@@ -1,3 +1,4 @@
+using ECAR.Shared;
 using System.Net;
 using System.Net.Mail;
 using System.Net.Mime;
@@ -57,7 +58,7 @@ public static class CorreoNovedad
         var mensaje = new MailMessage
         {
             From = new MailAddress(remitente, opciones.NombreRemitente),
-            Subject = $"[ECAR] Inspección #{inspeccion.IdInspeccion} - {novedades.Count} novedad(es) - " +
+            Subject = $"[ECAR] Inspección #{inspeccion.IdInspeccion} - {Plurales.Cantidad(novedades.Count, "novedad", "novedades")} - " +
                       $"{equipo.CodigoInterno} {equipo.NombreEquipo}",
             SubjectEncoding = Encoding.UTF8,
             BodyEncoding = Encoding.UTF8,

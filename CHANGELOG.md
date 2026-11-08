@@ -5,6 +5,26 @@ horaria de Colombia.
 
 ## [Sin publicar] — Fase 5
 
+### Corregido (prueba integral del 08/11/2026, rama `integracion-fase-final`)
+
+- **Datos de ejemplo**: las 4 categorías y las 3 ubicaciones «Planta Principal» se crean solo si la tabla está vacía, es
+  decir, en la primera instalación. Antes el API volvía a crear en cada arranque las que faltaran, así que el
+  Administrador no podía borrarlas para siempre.
+- **Siempre al menos un rol**: ya no se puede crear un usuario sin roles ni quitárselos todos al editarlo; esa cuenta
+  entraba y recibía «sin permiso» en todas las pantallas.
+  - El formulario de usuario lo valida antes de enviar («Elija al menos un rol») y el API responde 400.
+  - En «Asignación de Roles» no se puede quitar el único rol de un usuario ni pasarlo a otro usuario
+    (`UsuariosRolController.MensajeUnicoRol`). Cambiar el rol de la misma asignación sí se puede.
+- **Textos**:
+  - el subtítulo de Novedades decía «Respuestas «No» de las inspecciones firmadas»; ahora dice «Preguntas marcadas con
+    «¿Presenta novedad?» = Sí…»;
+  - sin «(es)/(s)» en los mensajes del API ni en el asunto del correo: «Queda 1 novedad» / «Quedan 2 novedades»,
+    «1 novedad pendiente», «30 minutos», «[ECAR] Inspección #6 - 1 novedad - …». El plural sale de `Plurales`
+    (`ECAR.Shared`), que también usa el cliente (`Texto`).
+- **Pendiente para el despliegue (sin cambio de código)**: la cuenta de correo del aplicativo y el destinatario
+  (`Correo:Usuario`, `Correo:Password`, `Correo:Remitente`, `Correo:Destinatarios`) los entrega ECAR, y la URL de la
+  intranet (`Cliente:BaseUrl`, que usan los enlaces del correo y las etiquetas QR) se conoce al desplegar.
+
 ### Cambiado (pedido del 04/11/2026, rama `integracion-back-front-fase-5`)
 
 - **Formulario de la inspección: solo «¿Presenta novedad?»**. Las preguntas Sí/No ya no tienen su propio Sí/No: se

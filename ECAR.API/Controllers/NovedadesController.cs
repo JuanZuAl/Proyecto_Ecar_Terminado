@@ -401,7 +401,7 @@ public class NovedadesController : ControllerBase
         var detalle = inspeccionCerrada
             ? $"{mensaje}. La inspección #{idInspeccion} quedó cerrada"
             : pendientes > 0
-                ? $"{mensaje}. La inspección #{idInspeccion} tiene {pendientes} novedad(es) pendiente(s)"
+                ? $"{mensaje}. La inspección #{idInspeccion} tiene {Plurales.Cantidad(pendientes, "novedad pendiente", "novedades pendientes")}"
                 : $"{mensaje} exitosamente";
         return Ok(ApiResponse<NovedadDto>.SuccessResponse(Completar(new NovedadDto(), actualizada), detalle));
     }

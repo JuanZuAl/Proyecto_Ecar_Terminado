@@ -646,7 +646,8 @@ public class InspeccionesController : ControllerBase
             MapToResultadoDto(inspeccion),
             novedades.Count == 0
                 ? "Inspección firmada y cerrada exitosamente"
-                : $"Inspección firmada. Quedan {novedades.Count} novedad(es) por resolver; se avisará por correo a la mesa de ayuda"));
+                : $"Inspección firmada. {Plurales.Palabra(novedades.Count, "Queda", "Quedan")} " +
+                  $"{Plurales.Cantidad(novedades.Count, "novedad", "novedades")} por resolver; se avisará por correo a la mesa de ayuda"));
     }
 
     /// <summary>

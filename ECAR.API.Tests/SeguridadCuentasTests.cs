@@ -218,12 +218,16 @@ public class SeguridadCuentasTests
     {
         var (context, _) = CrearContexto();
         await using var _ = context;
+        var rol = new Rol { Nombre = "Operador" };
+        context.Roles.Add(rol);
+        await context.SaveChangesAsync();
 
         var resultado = await ControladorUsuarios(context).CreateUsuario(new CreateUsuarioDto
         {
             Nombre = "Nuevo",
             Correo = "nuevo@ecar.test",
-            Password = "ClaveInicial2026"
+            Password = "ClaveInicial2026",
+            RoleIds = [rol.IdRol]
         });
 
         Assert.IsType<CreatedAtActionResult>(resultado.Result);

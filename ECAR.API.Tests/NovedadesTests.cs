@@ -213,7 +213,7 @@ public class NovedadesTests
         var accion = await FirmarAsync(e, inspeccion.IdInspeccion);
 
         var respuesta = Respuesta<InspeccionResultadoDto>(accion);
-        Assert.Contains("2 novedad(es)", respuesta.Message);
+        Assert.Contains("Quedan 2 novedades por resolver", respuesta.Message);
         var firmada = await InspeccionAsync(e, inspeccion.IdInspeccion);
         Assert.Equal(InspeccionEstados.NovedadesPendientes, firmada.Estado);
         Assert.Equal(InspeccionResultados.Pendiente, firmada.Resultado);
@@ -315,7 +315,8 @@ public class NovedadesTests
 
         var respuesta = Respuesta<NovedadDto>(accion);
         Assert.True(respuesta.Success);
-        Assert.Contains("1 novedad(es) pendiente(s)", respuesta.Message);
+        Assert.Contains("1 novedad pendiente", respuesta.Message);
+        Assert.DoesNotContain("(es)", respuesta.Message);
         var resuelta = await e.Db.Novedades.AsNoTracking().SingleAsync(n => n.IdNovedad == novedades[0].IdNovedad);
         Assert.Equal(NovedadEstados.Resuelta, resuelta.Estado);
         Assert.Equal(Solucion, resuelta.Solucion);
