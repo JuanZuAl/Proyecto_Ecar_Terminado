@@ -74,7 +74,7 @@
                     <MudSelect T="string" Label="Acción" @bind-Value="filtro.Accion" Variant="Variant.Outlined" Clearable="true">
                         @foreach (var accion in AuditoriaAcciones.Todas)
                         {
-                            <MudSelectItem T="string" Value="@accion">@accion</MudSelectItem>
+                            <MudSelectItem T="string" Value="@accion">@FormatoAuditoria.NombreAccion(accion)</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -117,7 +117,7 @@
                         <MudTd DataLabel="Registro">@context.RegistroId</MudTd>
                         <MudTd DataLabel="Acción">
                             <MudChip T="string" Color="@FormatoAuditoria.ColorAccion(context.Accion)" Size="Size.Small"
-                                Variant="Variant.Outlined" Text="@context.Accion" />
+                                Variant="Variant.Outlined" Text="@FormatoAuditoria.NombreAccion(context.Accion)" />
                         </MudTd>
                         <MudTd DataLabel="Usuario">@context.Usuario</MudTd>
                         <MudTd DataLabel="Motivo">
