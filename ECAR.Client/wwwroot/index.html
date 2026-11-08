@@ -18,9 +18,16 @@
 </head>
 
 <body>
-    <!-- Sin indicador de carga: sus estilos estaban en css/app.css, que no se carga, y al iniciar sesión
-         (la página se recarga) se veía un círculo negro. -->
-    <div id="app"></div>
+    <!-- Mientras se descargan los archivos de Blazor (unos 10 MB la primera vez) se ve la palabra
+         «Cargando…» en vez de una pantalla vacía (M-12). Solo texto y con el estilo en línea: sin imagen
+         ni css/app.css, que no se carga y dejaba un círculo negro al recargar tras iniciar sesión.
+         Blazor reemplaza el contenido de #app al arrancar. -->
+    <div id="app">
+        <div id="cargando" role="status"
+             style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-family: Roboto, Arial, sans-serif; font-size: 1.125rem; color: #5A6A7C;">
+            Cargando…
+        </div>
+    </div>
 
     <div id="blazor-error-ui">
         Ha ocurrido un error inesperado.
