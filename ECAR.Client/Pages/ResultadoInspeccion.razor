@@ -152,6 +152,10 @@
                                                 Width="150" Height="150" Class="rounded" />
                                         </button>
                                     }
+                                    else if (_miniaturas.ContainsKey(evidencia.IdEvidencia))
+                                    {
+                                        <EvidenciaNoDisponible Alto="150px" />
+                                    }
                                     else
                                     {
                                         <MudSkeleton Width="150px" Height="150px" />

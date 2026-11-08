@@ -50,6 +50,10 @@
                                             <MudImage Src="@src" Height="180" ObjectFit="ObjectFit.Cover" Class="mud-width-full" />
                                         </button>
                                     }
+                                    else if (miniaturas.ContainsKey(evidencia.IdEvidencia))
+                                    {
+                                        <EvidenciaNoDisponible Alto="180px" />
+                                    }
                                     else
                                     {
                                         <MudSkeleton Height="180px" />
@@ -109,6 +113,10 @@
                                                 @onclick="@(() => VisorImagenDialog.AbrirAsync(DialogService, src, context.NombreOriginal))">
                                             <MudImage Src="@src" ObjectFit="ObjectFit.Cover" />
                                         </button>
+                                    }
+                                    else if (miniaturas.ContainsKey(context.IdEvidencia))
+                                    {
+                                        <EvidenciaNoDisponible Compacta="true" />
                                     }
                                     else
                                     {
