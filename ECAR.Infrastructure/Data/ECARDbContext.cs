@@ -17,6 +17,17 @@ public partial class ECARDbContext : DbContext
         _contextoAuditoria = contextoAuditoria;
     }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        // Los guardados con auditoría y los cambios de estado de novedades corren dentro de una
+        // transacción propia que, si algo falla, se revierte entera: nunca se reintenta SaveChanges
+        // sobre ella, que es el único caso en que EF necesita savepoints. Con MARS
+        // (MultipleActiveResultSets=true, la cadena de ENV_SETUP.md) EF los desactiva y avisaba en el
+        // log en cada guardado (B-14); aquí ese aviso no informa de nada, así que se silencia.
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.SqlServerEventId.SavepointsDisabledBecauseOfMARS));
+    }
+
     // Conjuntos de entidades (DbSets)
     public DbSet<Equipo> Equipos { get; set; }
     public DbSet<CategoriaEquipo> CategoriasEquipo { get; set; }
