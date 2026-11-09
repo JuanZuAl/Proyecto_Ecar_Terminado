@@ -5,6 +5,15 @@ horaria de Colombia.
 
 ## [Sin publicar] — Fase 5
 
+### Cambiado (pedido del 09/11/2026, rama `integracion-fase-final`)
+
+- **Logo de ECAR en los PDF**: todos los PDF que genera el sistema (reportes, exportación de la auditoría, tablero y
+  registro de la inspección) llevan en el encabezado de cada página el logo de la pantalla de inicio, de 1,6 cm de alto,
+  con una línea debajo. Es el mismo archivo `ECAR.Client/wwwroot/images/logo-ecar.png`, incrustado en el ensamblado del
+  API (`ECAR.API.csproj`), así que no hay una segunda copia que mantener. El encabezado va en
+  `ExportadorTabla.Documento`, que arma los tres tipos de PDF; el margen superior pasa de 1,5 cm a 3 cm. Pruebas en
+  `LogoPdfTests`.
+
 ### Corregido (prueba integral del 08/11/2026, rama `integracion-fase-final`)
 
 - **Datos de ejemplo**: las 4 categorías y las 3 ubicaciones «Planta Principal» se crean solo si la tabla está vacía, es

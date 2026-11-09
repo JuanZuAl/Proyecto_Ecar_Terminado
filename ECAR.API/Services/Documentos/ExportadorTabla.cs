@@ -213,10 +213,14 @@ public static class ExportadorTabla
         seccion.PageSetup.Orientation = Orientation.Portrait;
         seccion.PageSetup.PageWidth = Unit.FromCentimeter(horizontal ? 29.7 : 21);
         seccion.PageSetup.PageHeight = Unit.FromCentimeter(horizontal ? 21 : 29.7);
-        seccion.PageSetup.TopMargin = Unit.FromCentimeter(1.5);
+        // El encabezado (logo de ECAR) empieza a 0,8 cm del borde y el contenido debajo de él.
+        seccion.PageSetup.HeaderDistance = Unit.FromCentimeter(0.8);
+        seccion.PageSetup.TopMargin = Unit.FromCentimeter(0.8 + AltoLogoCm + 0.6);
         seccion.PageSetup.BottomMargin = Unit.FromCentimeter(2);
         seccion.PageSetup.LeftMargin = Unit.FromCentimeter(2);
         seccion.PageSetup.RightMargin = Unit.FromCentimeter(2);
+
+        Encabezado(seccion);
 
         var piePagina = seccion.Footers.Primary.AddParagraph();
         piePagina.Format.Font.Size = 7;
@@ -232,6 +236,43 @@ public static class ExportadorTabla
         encabezado.Format.SpaceAfter = Unit.FromPoint(6);
 
         return documento;
+    }
+
+    /// <summary>Alto del logo en el encabezado de cada página, en cm.</summary>
+    internal const double AltoLogoCm = 1.6;
+
+    /// <summary>
+    /// El logo de ECAR de la pantalla de inicio (ECAR.Client/wwwroot/images/logo-ecar.png), incrustado en el
+    /// ensamblado del API (ECAR.API.csproj). Null si falta el recurso.
+    /// </summary>
+    internal static byte[]? Logo => LogoIncrustado.Value;
+
+    private static readonly Lazy<byte[]?> LogoIncrustado = new(() =>
+    {
+        using var flujo = typeof(ExportadorTabla).Assembly.GetManifestResourceStream("ECAR.API.logo-ecar.png");
+        if (flujo == null)
+        {
+            return null;
+        }
+
+        using var memoria = new MemoryStream();
+        flujo.CopyTo(memoria);
+        return memoria.ToArray();
+    });
+
+    /// <summary>Encabezado de todas las páginas: el logo de ECAR a la izquierda y una línea debajo.</summary>
+    private static void Encabezado(Section seccion)
+    {
+        var parrafo = seccion.Headers.Primary.AddParagraph();
+        parrafo.Format.Borders.Bottom.Width = 0.5;
+        parrafo.Format.Borders.Bottom.Color = Color.FromRgb(0x16, 0x43, 0x8C);
+        parrafo.Format.Borders.DistanceFromBottom = Unit.FromPoint(2);
+        if (Logo is { } logo)
+        {
+            var imagen = parrafo.AddImage("base64:" + Convert.ToBase64String(logo));
+            imagen.LockAspectRatio = true;
+            imagen.Height = Unit.FromCentimeter(AltoLogoCm);
+        }
     }
 
     /// <summary>Ancho de la hoja menos los márgenes, en cm.</summary>
