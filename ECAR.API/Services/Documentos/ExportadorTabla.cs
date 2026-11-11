@@ -8,8 +8,11 @@ using PdfSharp.Fonts;
 
 namespace ECAR.API.Services.Documentos;
 
-/// <summary>Una columna del documento; el ancho solo se usa en el PDF (horizontal, 25,7 cm útiles).</summary>
-public sealed record Columna(string Titulo, double AnchoCm);
+/// <summary>
+/// Una columna del documento. El ancho en el PDF sale del contenido (<see cref="AjusteTexto"/>, 29/10/2026):
+/// antes cada reporte fijaba proporciones y el texto largo se salía de la celda.
+/// </summary>
+public sealed record Columna(string Titulo);
 
 /// <summary>
 /// Pie de cada documento (PLAN_FASE4_TAREAS §3.9): reporte, filtros, quién lo generó, fecha y hora
@@ -34,6 +37,9 @@ public static class ExportadorTabla
 {
     /// <summary>Un archivo lleva todo el rango; con más filas se pide acotar las fechas (§3.9).</summary>
     public const int MaximoFilas = 10_000;
+
+    /// <summary>Tamaño de letra de las tablas de los reportes en PDF.</summary>
+    internal const double TamanoTablaPt = 7.5;
 
     public const string TipoPdf = "application/pdf";
     public const string TipoExcel = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -144,12 +150,19 @@ public static class ExportadorTabla
         }
 
         var tabla = seccion.AddTable();
+        AjusteTexto.Preparar(tabla);
         tabla.Borders.Width = 0.4;
         tabla.Borders.Color = Colors.Gray;
-        tabla.Format.Font.Size = 7.5;
-        foreach (var columna in columnas)
+        tabla.Format.Font.Size = TamanoTablaPt;
+
+        // El ancho de cada columna sale de lo que lleva (AjusteTexto): las cortas en una línea y el resto
+        // para la que tiene más información. Las palabras que aun así no caben se parten.
+        var textos = filas.Select(valores => (IReadOnlyList<string>)valores.Select(Texto).ToArray()).ToList();
+        using var ajuste = new AjusteTexto(TamanoTablaPt);
+        var anchos = ajuste.Anchos(columnas.Select(c => c.Titulo).ToArray(), textos, AnchoUtilCm(seccion.PageSetup));
+        foreach (var ancho in anchos)
         {
-            tabla.AddColumn(Unit.FromCentimeter(columna.AnchoCm));
+            tabla.AddColumn(Unit.FromCentimeter(ancho));
         }
 
         var encabezado = tabla.AddRow();
@@ -158,21 +171,19 @@ public static class ExportadorTabla
         encabezado.Format.Font.Bold = true;
         for (var c = 0; c < columnas.Count; c++)
         {
-            encabezado.Cells[c].AddParagraph(columnas[c].Titulo);
+            ajuste.Escribir(encabezado.Cells[c].AddParagraph(), columnas[c].Titulo, anchos[c], negrita: true);
         }
 
-        var hayFilas = false;
-        foreach (var valores in filas)
+        foreach (var valores in textos)
         {
-            hayFilas = true;
             var fila = tabla.AddRow();
-            for (var c = 0; c < valores.Count; c++)
+            for (var c = 0; c < valores.Count && c < columnas.Count; c++)
             {
-                fila.Cells[c].AddParagraph(Texto(valores[c]));
+                ajuste.Escribir(fila.Cells[c].AddParagraph(), valores[c], anchos[c]);
             }
         }
 
-        if (!hayFilas)
+        if (textos.Count == 0)
         {
             var vacia = tabla.AddRow();
             vacia.Cells[0].MergeRight = columnas.Count - 1;
@@ -196,12 +207,20 @@ public static class ExportadorTabla
 
         var seccion = documento.AddSection();
         seccion.PageSetup = documento.DefaultPageSetup.Clone();
-        seccion.PageSetup.PageFormat = PageFormat.A4;
-        seccion.PageSetup.Orientation = horizontal ? Orientation.Landscape : Orientation.Portrait;
-        seccion.PageSetup.TopMargin = Unit.FromCentimeter(1.5);
+        // A4 con las medidas puestas a mano. Con PDFsharp-MigraDoc 6, «Orientation = Landscape» sobre
+        // «PageFormat = A4» dejaba la hoja vertical (21 cm de ancho) mientras las tablas se medían para
+        // la horizontal, y los reportes salían cortados por la derecha.
+        seccion.PageSetup.Orientation = Orientation.Portrait;
+        seccion.PageSetup.PageWidth = Unit.FromCentimeter(horizontal ? 29.7 : 21);
+        seccion.PageSetup.PageHeight = Unit.FromCentimeter(horizontal ? 21 : 29.7);
+        // El encabezado (logo de ECAR) empieza a 0,8 cm del borde y el contenido debajo de él.
+        seccion.PageSetup.HeaderDistance = Unit.FromCentimeter(0.8);
+        seccion.PageSetup.TopMargin = Unit.FromCentimeter(0.8 + AltoLogoCm + 0.6);
         seccion.PageSetup.BottomMargin = Unit.FromCentimeter(2);
         seccion.PageSetup.LeftMargin = Unit.FromCentimeter(2);
         seccion.PageSetup.RightMargin = Unit.FromCentimeter(2);
+
+        Encabezado(seccion);
 
         var piePagina = seccion.Footers.Primary.AddParagraph();
         piePagina.Format.Font.Size = 7;
@@ -218,6 +237,47 @@ public static class ExportadorTabla
 
         return documento;
     }
+
+    /// <summary>Alto del logo en el encabezado de cada página, en cm.</summary>
+    internal const double AltoLogoCm = 1.6;
+
+    /// <summary>
+    /// El logo de ECAR de la pantalla de inicio (ECAR.Client/wwwroot/images/logo-ecar.png), incrustado en el
+    /// ensamblado del API (ECAR.API.csproj). Null si falta el recurso.
+    /// </summary>
+    internal static byte[]? Logo => LogoIncrustado.Value;
+
+    private static readonly Lazy<byte[]?> LogoIncrustado = new(() =>
+    {
+        using var flujo = typeof(ExportadorTabla).Assembly.GetManifestResourceStream("ECAR.API.logo-ecar.png");
+        if (flujo == null)
+        {
+            return null;
+        }
+
+        using var memoria = new MemoryStream();
+        flujo.CopyTo(memoria);
+        return memoria.ToArray();
+    });
+
+    /// <summary>Encabezado de todas las páginas: el logo de ECAR a la izquierda y una línea debajo.</summary>
+    private static void Encabezado(Section seccion)
+    {
+        var parrafo = seccion.Headers.Primary.AddParagraph();
+        parrafo.Format.Borders.Bottom.Width = 0.5;
+        parrafo.Format.Borders.Bottom.Color = Color.FromRgb(0x16, 0x43, 0x8C);
+        parrafo.Format.Borders.DistanceFromBottom = Unit.FromPoint(2);
+        if (Logo is { } logo)
+        {
+            var imagen = parrafo.AddImage("base64:" + Convert.ToBase64String(logo));
+            imagen.LockAspectRatio = true;
+            imagen.Height = Unit.FromCentimeter(AltoLogoCm);
+        }
+    }
+
+    /// <summary>Ancho de la hoja menos los márgenes, en cm.</summary>
+    internal static double AnchoUtilCm(PageSetup pagina) =>
+        pagina.PageWidth.Centimeter - pagina.LeftMargin.Centimeter - pagina.RightMargin.Centimeter;
 
     internal static byte[] Renderizar(Document documento)
     {
@@ -243,7 +303,7 @@ public static class ExportadorTabla
     private static bool _fuentesConfiguradas;
 
     /// <summary>PDFsharp 6 necesita saber de dónde sacar las fuentes; el servidor de ECAR es Windows.</summary>
-    private static void ConfigurarFuentes()
+    internal static void ConfigurarFuentes()
     {
         lock (CandadoFuentes)
         {

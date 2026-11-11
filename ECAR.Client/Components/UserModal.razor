@@ -2,7 +2,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }">
+<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }" Class="form-enter form-compacto">
     <TitleContent>
         <MudText Typo="Typo.h6">@(IsEditMode ? "Editar Usuario" : "Crear Nuevo Usuario")</MudText>
     </TitleContent>
@@ -14,28 +14,33 @@
 
             <MudTextField T="string" Label="Correo" @bind-Value="correo" 
                 Variant="Variant.Outlined" Required="true" RequiredError="El correo es requerido"
+                Validation="@(new Func<string, IEnumerable<string>>(ErroresCorreo))"
                 MaxLength="150" Immediate="true" Class="mb-3" />
 
             @if (IsEditMode)
             {
-                @* Fase 4 (Parte 11 §11.300): la contraseña ya no se cambia desde aquí; el Administrador
-                   usa "Restablecer contraseña" en la lista y el usuario la cambia al entrar. *@
+                @* La contraseña solo se pone al crear el usuario: desde el 03/11/2026 el cambio y el
+                   restablecimiento los hace una API externa. *@
                 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-                    Para cambiar la contraseña use «Restablecer contraseña» en la lista de usuarios.
+                    La contraseña no se cambia ni se restablece en este sistema: la administra la API externa de contraseñas.
                 </MudAlert>
             }
             else
             {
-                <MudTextField T="string" Label="Password" @bind-Value="password" 
-                    Variant="Variant.Outlined" Required="true" RequiredError="El password es requerido"
+                <MudTextField T="string" Label="Contraseña" @bind-Value="password" 
+                    Variant="Variant.Outlined" Required="true" RequiredError="La contraseña es requerida"
+                    Validation="@(new Func<string, IEnumerable<string>>(ErroresPassword))"
+                    HelperText="@TextoPolitica" HelperTextOnFocus="false"
                     InputType="InputType.Password" Immediate="true" Class="mb-3" />
             }
 
             <MudTextField T="string" Label="Usuario AD" @bind-Value="usuarioAD" 
                 Variant="Variant.Outlined" MaxLength="100" Immediate="true" Class="mb-3" />
 
-            <MudSelect T="long" Label="Roles" @bind-SelectedValues="selectedRoleIds" MultiSelection="true" 
-                Variant="Variant.Outlined" Class="mb-3"
+            @* Al menos un rol, como exige el API: sin rol el usuario entraría y no podría usar nada. *@
+            <MudSelect T="long" Label="Roles" @bind-SelectedValues="selectedRoleIds" @bind-SelectedValues:after="() => faltaRol = false"
+                MultiSelection="true" Variant="Variant.Outlined" Class="mb-3"
+                Error="@faltaRol" ErrorText="Elija al menos un rol"
                 ToStringFunc="@(id => availableRoles?.FirstOrDefault(r => r.IdRol == id)?.Nombre ?? id.ToString())">
                 @if (availableRoles != null)
                 {
@@ -54,7 +59,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="dialog-button cancel-btn">Cancelar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button">Guardar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button enter-guardar">Guardar</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -75,11 +80,29 @@
     private string? usuarioAD;
     private bool activo = true;
     private IReadOnlyCollection<long> selectedRoleIds = new HashSet<long>();
+    private bool faltaRol;
     private List<RolDto>? availableRoles;
+
+    // Reglas de la contraseña del alta: las que publica el API (api/auth/politica); mientras no respondan,
+    // las del plan (PoliticaSeguridadDto trae los valores por defecto).
+    private PoliticaSeguridadDto politica = new();
+
+    private string TextoPolitica => politica.RequiereLetrasYNumeros
+        ? $"Mínimo {politica.LongitudMinimaPassword} caracteres, combinando letras y números"
+        : $"Mínimo {politica.LongitudMinimaPassword} caracteres";
 
     protected override async Task OnInitializedAsync()
     {
         availableRoles = AvailableRoles ?? new List<RolDto>();
+
+        if (!IsEditMode)
+        {
+            var respuestaPolitica = await HttpClientService.GetPoliticaSeguridadAsync();
+            if (respuestaPolitica.Success && respuestaPolitica.Data is { LongitudMinimaPassword: > 0 } datos)
+            {
+                politica = datos;
+            }
+        }
         
         if (IsEditMode && Usuario != null)
         {
@@ -100,15 +123,46 @@
         }
     }
 
+    // Mismas reglas y mensajes que el API (EmailAddress de CreateUsuarioDto y PoliticaPasswords). Vacío no es
+    // un error de formato: de eso se encarga Required.
+    private static IEnumerable<string> ErroresCorreo(string valor)
+    {
+        if (!string.IsNullOrWhiteSpace(valor)
+            && !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(valor.Trim()))
+        {
+            yield return "Formato de correo inválido";
+        }
+    }
+
+    private IEnumerable<string> ErroresPassword(string valor)
+    {
+        if (string.IsNullOrEmpty(valor))
+        {
+            yield break;
+        }
+
+        if (valor.Length < politica.LongitudMinimaPassword)
+        {
+            yield return $"La contraseña debe tener al menos {politica.LongitudMinimaPassword} caracteres";
+        }
+
+        if (politica.RequiereLetrasYNumeros && (!valor.Any(char.IsLetter) || !valor.Any(char.IsDigit)))
+        {
+            yield return "La contraseña debe combinar letras y números";
+        }
+    }
+
     private async Task HandleSubmit()
     {
         if (form != null)
         {
             await form.ValidateAsync();
-            if (!form.IsValid)
-            {
-                return;
-            }
+        }
+
+        faltaRol = selectedRoleIds.Count == 0;
+        if ((form != null && !form.IsValid) || faltaRol)
+        {
+            return;
         }
 
         try
@@ -147,7 +201,7 @@
                 }
                 else
                 {
-                    Snackbar.Add(result?.Message ?? "Error al actualizar usuario", Severity.Error);
+                    Snackbar.Add(MensajeApi.Detalle(result, "Error al actualizar usuario"), Severity.Error);
                 }
             }
             else
@@ -170,13 +224,13 @@
                 }
                 else
                 {
-                    Snackbar.Add(result?.Message ?? "Error al crear usuario", Severity.Error);
+                    Snackbar.Add(MensajeApi.Detalle(result, "Error al crear usuario"), Severity.Error);
                 }
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
         }
     }
 
@@ -201,21 +255,21 @@
 }
 
 .dialog-button.mud-button-filled {
-    background-color: #397FDE !important;
+    background-color: var(--primary) !important;
     color: white !important;
 }
 
 .dialog-button.mud-button-filled:hover {
-    background-color: #2A5FB8 !important;
+    background-color: var(--primary-dark) !important;
 }
 
 .cancel-btn {
-    background-color: #79B75D !important;
+    background-color: var(--secondary) !important;
     color: white !important;
 }
 
 .cancel-btn:hover {
-    background-color: #68A552 !important;
+    background-color: var(--secondary-dark) !important;
 }
 
 .activo-checkbox {

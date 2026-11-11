@@ -40,6 +40,8 @@ public class Usuario
     [Column("BloqueadoHasta")]
     public DateTime? BloqueadoHasta { get; set; }
 
+    // FechaCambioPassword y DebeCambiarPassword ya no obligan a nada desde el 03/11/2026: el sistema no cambia
+    // ni restablece contraseñas (lo hará una API externa). Las columnas se conservan con los datos anteriores.
     [Column("FechaCambioPassword")]
     public DateTime? FechaCambioPassword { get; set; }
 

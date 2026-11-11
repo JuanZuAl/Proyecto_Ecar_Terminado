@@ -2,7 +2,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }">
+<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }" Class="form-enter">
     <TitleContent>
         <MudText Typo="Typo.h6">@(IsEditMode ? "Editar Equipo" : "Crear Nuevo Equipo")</MudText>
     </TitleContent>
@@ -49,17 +49,6 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    @* Fase 4: el reporte de cumplimiento cuenta como programados los equipos con frecuencia. *@
-                    <MudSelect T="string" Label="Frecuencia de inspección" @bind-Value="frecuencia"
-                        Variant="Variant.Outlined" Clearable="true" Class="mb-3"
-                        HelperText="Sin frecuencia, el equipo no entra en el reporte de cumplimiento">
-                        @foreach (var opcion in FrecuenciasInspeccion.Todas)
-                        {
-                            <MudSelectItem T="string" Value="@opcion">@opcion</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6">
                     <MudSelect T="long?" Label="Categoría" @bind-Value="idCategoria"
                         Variant="Variant.Outlined" Clearable="true" Class="mb-3">
                         @foreach (var cat in categorias)
@@ -88,7 +77,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="dialog-button cancel-btn">Cancelar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button">Guardar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button enter-guardar">Guardar</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -115,7 +104,6 @@
     private string? modelo;
     private string? fabricante;
     private string? criticidad;
-    private string? frecuencia;
     private long? idCategoria;
     private long? idUbicacion;
     private bool activo = true;
@@ -138,7 +126,6 @@
             modelo = Equipo.Modelo;
             fabricante = Equipo.Fabricante;
             criticidad = Equipo.Criticidad;
-            frecuencia = Equipo.FrecuenciaInspeccion;
             idCategoria = Equipo.IdCategoria;
             idUbicacion = Equipo.IdUbicacion;
             activo = Equipo.Activo;
@@ -171,7 +158,6 @@
                 var updateDto = new UpdateEquipoDto
                 {
                     Motivo = motivo,
-                    FrecuenciaInspeccion = frecuencia ?? string.Empty,
                     CodigoInterno = codigoInterno,
                     ActivoFijo = activoFijo,
                     NombreEquipo = nombreEquipo,
@@ -210,8 +196,7 @@
                     Fabricante = fabricante,
                     Criticidad = criticidad,
                     IdCategoria = idCategoria,
-                    IdUbicacion = idUbicacion,
-                    FrecuenciaInspeccion = frecuencia
+                    IdUbicacion = idUbicacion
                 };
 
                 var result = await HttpClientService.CreateEquipoAsync(createDto);
@@ -219,7 +204,8 @@
                 if (result != null && result.Success)
                 {
                     Snackbar.Add("Equipo creado exitosamente", Severity.Success);
-                    MudDialog.Close(DialogResult.Ok(true));
+                    // El API ya le creó el QR: la página abre la etiqueta con el equipo devuelto.
+                    MudDialog.Close(DialogResult.Ok(result.Data));
                 }
                 else
                 {
@@ -229,7 +215,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
         }
     }
 
@@ -254,20 +240,20 @@
 }
 
 .dialog-button.mud-button-filled {
-    background-color: #397FDE !important;
+    background-color: var(--primary) !important;
     color: white !important;
 }
 
 .dialog-button.mud-button-filled:hover {
-    background-color: #2A5FB8 !important;
+    background-color: var(--primary-dark) !important;
 }
 
 .cancel-btn {
-    background-color: #79B75D !important;
+    background-color: var(--secondary) !important;
     color: white !important;
 }
 
 .cancel-btn:hover {
-    background-color: #68A552 !important;
+    background-color: var(--secondary-dark) !important;
 }
 </style>

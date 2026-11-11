@@ -3,9 +3,9 @@
 @inject AuthorizationService AuthorizationService
 
 @* Ficha técnica y consulta histórica de un equipo (SRS §2 y §6, Gestión de Equipos). Es de solo
-   lectura y la pueden abrir Administrador, Técnico y Auditor. El historial sale de
-   GET /api/inspecciones?idEquipo=: el API aplica sus reglas, así que un Técnico ve solo las suyas. *@
-<MudDialog Options="new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true }">
+   lectura y la pueden abrir todos los roles. El historial sale de
+   GET /api/inspecciones?idEquipo=: el API aplica sus reglas, así que un Operador ve solo las suyas. *@
+<MudDialog Options="Opciones">
     <TitleContent>
         <MudText Typo="Typo.h6">@Equipo.CodigoInterno · @Equipo.NombreEquipo</MudText>
     </TitleContent>
@@ -39,7 +39,7 @@
         </MudGrid>
 
         <MudText Typo="Typo.subtitle2" Class="mb-2">
-            Consulta histórica · @totalInspecciones inspección(es)
+            Consulta histórica · @Texto.Cantidad(totalInspecciones, "inspección", "inspecciones")
         </MudText>
 
         @if (cargando)
@@ -56,7 +56,7 @@
         }
         else
         {
-            <MudTable Items="inspecciones" Dense="true" Hover="true" Striped="true" Elevation="0">
+            <MudTable Items="inspecciones" Dense="true" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md">
                 <HeaderContent>
                     <MudTh>ID</MudTh>
                     <MudTh>Fecha</MudTh>
@@ -64,8 +64,10 @@
                     <MudTh>Checklist</MudTh>
                     <MudTh>Estado</MudTh>
                     <MudTh>Resultado</MudTh>
-                    <MudTh>Evid. / Hall.</MudTh>
-                    <MudTh></MudTh>
+                    <MudTh>Evidencias</MudTh>
+                    <MudTh>Novedades totales</MudTh>
+                    <MudTh>Novedades pendientes</MudTh>
+                    <MudTh Class="col-acciones"></MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="ID">@context.IdInspeccion</MudTd>
@@ -74,13 +76,15 @@
                     <MudTd DataLabel="Checklist">@context.NombreChecklist</MudTd>
                     <MudTd DataLabel="Estado">
                         <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                            Color="@(context.Estado == InspeccionEstados.Cerrada ? Color.Success : Color.Warning)"
-                            Text="@(context.Estado == InspeccionEstados.Cerrada ? "Cerrada" : "En curso")" />
+                            Color="@FormatoEstados.ColorInspeccion(context.Estado)"
+                            Text="@InspeccionEstados.Texto(context.Estado)" />
                     </MudTd>
                     <MudTd DataLabel="Resultado">@InspeccionResultados.Texto(context.Resultado)</MudTd>
-                    <MudTd DataLabel="Evid. / Hall.">@context.TotalEvidencias / @context.TotalHallazgos</MudTd>
-                    <MudTd DataLabel="">
-                        @if (context.Estado == InspeccionEstados.Cerrada)
+                    <MudTd DataLabel="Evidencias">@context.TotalEvidencias</MudTd>
+                    <MudTd DataLabel="Novedades totales">@context.TotalNovedades</MudTd>
+                    <MudTd DataLabel="Novedades pendientes">@context.NovedadesPendientes</MudTd>
+                    <MudTd DataLabel="" Class="col-acciones">
+                        @if (InspeccionEstados.EstaFirmada(context.Estado))
                         {
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
                                 StartIcon="@Icons.Material.Filled.Assignment" OnClick="() => VerResultado(context)">
@@ -125,6 +129,10 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
+    // MudBlazor 9 solo aplica las Options de <MudDialog> a los diálogos en línea: abierto con
+    // DialogService salía con el ancho pequeño (600 px). Se aplican al abrirse.
+    private static readonly DialogOptions Opciones = new() { MaxWidth = MaxWidth.Large, FullWidth = true };
+
     [Parameter, EditorRequired]
     public EquipoDto Equipo { get; set; } = null!;
 
@@ -142,8 +150,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await MudDialog.SetOptionsAsync(Opciones);
         var roles = await AuthorizationService.GetUserRolesAsync();
-        puedeVerAuditoria = roles.Contains("Administrador") || roles.Contains("Auditor");
+        puedeVerAuditoria = roles.Contains(RolesSistema.Administrador) || roles.Contains(RolesSistema.Supervisor);
         await CargarHistorialAsync();
     }
 

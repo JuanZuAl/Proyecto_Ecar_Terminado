@@ -1,4 +1,5 @@
 using ECAR.API.Services;
+using ECAR.API.Services.Notificaciones;
 using ECAR.Infrastructure.Data;
 using ECAR.Shared.Responses;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -12,7 +13,7 @@ using ECAR.Infrastructure.Entities;
 var builder = WebApplication.CreateBuilder(args);
 
 // Registrar los servicios en el contenedor.
-builder.Services.AddControllers(options => options.Filters.Add<CambioPasswordPendienteFilter>())
+builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>
@@ -33,18 +34,27 @@ builder.Services.AddControllers(options => options.Filters.Add<CambioPasswordPen
 var conn = builder.Configuration.GetConnectionString("ECARConnection");
 if (string.IsNullOrWhiteSpace(conn))
 {
-    throw new InvalidOperationException("ConnectionStrings:ECARConnection is not configured");
+    throw new InvalidOperationException(
+        "ConnectionStrings:ECARConnection no está configurada (user-secrets o variable de entorno ConnectionStrings__ECARConnection)");
 }
 
 // Configurar Entity Framework
+// Las consultas de inspecciones cargan varias colecciones a la vez (preguntas, respuestas, evidencias,
+// novedades): en una sola consulta se multiplican las filas (producto cartesiano); en consultas
+// separadas no (B-14).
 builder.Services.AddDbContext<ECARDbContext>(options =>
-    options.UseSqlServer(conn));
+    options.UseSqlServer(conn, sql => sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
 // Configurar la autenticación JWT
-var jwtSecret = builder.Configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
+var jwtSecret = builder.Configuration["JWT:Secret"];
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    throw new InvalidOperationException("JWT:Secret no está configurado (user-secrets o variable de entorno JWT__Secret)");
+}
+
 if (jwtSecret.Length < 32)
 {
-    throw new InvalidOperationException("JWT:Secret must contain at least 32 characters");
+    throw new InvalidOperationException("JWT:Secret debe tener al menos 32 caracteres");
 }
 var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? "ECAR-Auditoria";
 var jwtAudience = builder.Configuration["JWT:Audience"] ?? "ECAR-Users";
@@ -121,6 +131,19 @@ builder.Services.AddOptions<ECAR.API.Configuration.FirmaOptions>()
     .ValidateOnStart();
 builder.Services.AddSingleton<PoliticaPasswords>();
 builder.Services.AddScoped<VerificadorIntegridad>();
+
+// Correo a la mesa de ayuda (SRS v1.1, regla 4): uno por inspección con novedades, con todas
+// ellas. Firmar solo deja la inspección en la cola; un servicio en segundo plano envía el correo,
+// así que un correo caído no detiene ni revierte la firma. Sin Correo:Usuario y Correo:Password
+// (user-secrets) los mensajes se guardan como .eml en Correo:CarpetaSalida y las novedades quedan
+// "sin enviar" para reenviar el correo después.
+builder.Services.AddOptions<ECAR.API.Configuration.CorreoOptions>()
+    .Bind(builder.Configuration.GetSection(ECAR.API.Configuration.CorreoOptions.SectionName));
+builder.Services.AddSingleton<ColaNotificaciones>();
+builder.Services.AddSingleton<INotificadorNovedades>(servicios => servicios.GetRequiredService<ColaNotificaciones>());
+builder.Services.AddSingleton<IEnviadorCorreo, EnviadorCorreoSmtp>();
+builder.Services.AddScoped<NotificacionNovedades>();
+builder.Services.AddHostedService<EnvioNotificacionesService>();
 
 // Configurar almacenamiento de evidencias
 builder.Services.Configure<ECAR.API.Configuration.EvidenciasOptions>(builder.Configuration.GetSection("Evidencias"));

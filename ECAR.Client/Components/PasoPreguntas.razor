@@ -6,10 +6,20 @@
    cambio con debounce por pregunta (ver ProgramarGuardado): tanto la respuesta como la
    Observación se guardan solas, sin esperar a que el técnico toque otro campo.
 
-   La Observación está siempre visible y solo es obligatoria cuando la pregunta es Sí/No y
-   quedó en "No" (regla 4 del SRS). Si se mostrara solo en novedad, al corregir "No" -> "Sí"
-   el campo desaparecería pero el texto seguiría guardado y reenviándose: una observación en
-   una respuesta conforme que el técnico ya no podría ver ni borrar.
+   Desde el 29/10/2026 (decisión de ECAR):
+   - arriba se elige la sede (Rionegro o Medellín), obligatoria para firmar;
+   - cada pregunta tiene «¿Presenta novedad?» (Sí/No). Es lo único que crea una novedad al firmar.
+   Desde el 04/11/2026 una pregunta Sí/No ya no tiene su propio Sí/No: se responde solo con «¿Presenta
+   novedad?». Las preguntas de texto que quedan de checklists anteriores siguen con su campo.
+
+   Sin nada marcado de fábrica (B-13, confirmado el 07/11/2026): el inspector tiene que elegir Sí o No en
+   «¿Presenta novedad?» de CADA pregunta. Lo que no elige se guarda como «sin marcar» (null), no como «No», y
+   «Siguiente» no deja avanzar hasta que lo elija. Si elige Sí, la observación es obligatoria.
+
+   La Observación está siempre visible y solo es obligatoria cuando «¿Presenta novedad?» es Sí
+   (regla 4 del SRS). Si se mostrara solo en novedad, al pasar de Sí a No el campo desaparecería
+   pero el texto seguiría guardado y reenviándose: una observación que el técnico ya no podría
+   ver ni borrar.
 
    El indicador Estado (cabecera) muestra Guardando/Guardado/Error; el Snackbar queda
    reservado solo para errores, para no saturar la pantalla en preguntas de texto. *@
@@ -22,6 +32,16 @@
     </MudText>
 }
 
+@* Sede de la inspección: un dato de toda la inspección, obligatorio para firmar. *@
+<MudSelect T="string" Label="Sede *" Value="@Inspeccion.Sede" ValueChanged="CambiarSedeAsync"
+           Variant="Variant.Outlined" Class="mb-4" Placeholder="Seleccione la sede"
+           HelperText="Obligatoria para firmar">
+    @foreach (var sede in Sedes.Todas)
+    {
+        <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+    }
+</MudSelect>
+
 @if (Inspeccion.Preguntas.Count == 0)
 {
     <MudAlert Severity="Severity.Warning" Dense="true">
@@ -32,21 +52,62 @@ else
 {
     @foreach (var pregunta in Inspeccion.Preguntas)
     {
-        <RespuestaPreguntaInput Label="@(pregunta.Obligatoria ? pregunta.Pregunta + " *" : pregunta.Pregunta)"
-                                 TipoRespuesta="@pregunta.TipoRespuesta"
-                                 Valor="@pregunta.Respuesta"
-                                 ValorChanged="(nuevoValor) => OnRespuestaCambiada(pregunta, nuevoValor)" />
+        <div class="pregunta-bloque">
+        @if (TiposRespuesta.PideRespuesta(pregunta.TipoRespuesta))
+        {
+            <RespuestaPreguntaInput Label="@(pregunta.Obligatoria ? pregunta.Pregunta + " *" : pregunta.Pregunta)"
+                                     TipoRespuesta="@pregunta.TipoRespuesta"
+                                     Valor="@pregunta.Respuesta"
+                                     ValorChanged="(nuevoValor) => OnRespuestaCambiada(pregunta, nuevoValor)" />
+        }
+        else
+        {
+            <MudText Typo="Typo.body1" Class="pregunta-texto">@pregunta.Pregunta</MudText>
+        }
+
+        @* Sin nada marcado hasta que el inspector elige; volver a tocar la casilla marcada la desmarca. *@
+        <div class="mt-2">
+            <RespuestaPreguntaInput Label="¿Presenta novedad?"
+                                    TipoRespuesta="@TiposRespuesta.SiNo"
+                                    Valor="@(pregunta.PresentaNovedad switch { true => "Si", false => "No", _ => null })"
+                                    ValorChanged="(nuevoValor) => OnNovedadCambiada(pregunta, nuevoValor)" />
+        </div>
 
         <MudTextField T="string" @bind-Value="pregunta.Observacion"
                       @bind-Value:after="() => ProgramarGuardado(pregunta)"
                       Label="@(pregunta.EsNovedad ? "Observación (obligatoria)" : "Observación (opcional)")"
-                      Variant="Variant.Outlined" Lines="2" Class="mb-4"
+                      Variant="Variant.Outlined" Lines="2" Class="mt-2"
                       Required="@pregunta.EsNovedad"
                       Immediate="true" DebounceInterval="500"
                       Error="@(pregunta.EsNovedad && string.IsNullOrWhiteSpace(pregunta.Observacion))"
                       ErrorText="La observación es obligatoria cuando hay novedad" />
+        </div>
     }
 }
+
+<style>
+    /* Cada pregunta es una tarjeta: se distingue una de otra de un vistazo al desplazarse. */
+    .pregunta-bloque {
+        padding: 16px 18px 18px;
+        margin-bottom: 16px;
+        background-color: var(--surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radio-grande);
+        box-shadow: var(--sombra-1);
+    }
+
+    /* «¿Presenta novedad?» es la pregunta de segundo nivel: más discreta que el enunciado. */
+    .pregunta-bloque > .mt-2 .sino-etiqueta {
+        font-size: 0.875rem;
+        font-weight: 400;
+        color: var(--text-secondary);
+    }
+
+    .pregunta-texto {
+        font-weight: 500;
+        overflow-wrap: anywhere;
+    }
+</style>
 
 @code {
     [Parameter, EditorRequired]
@@ -105,6 +166,36 @@ else
         ProgramarGuardado(pregunta);
     }
 
+    // «Sí» marca la novedad, «No» la descarta y desmarcar la deja sin elegir (null).
+    private void OnNovedadCambiada(PreguntaEjecucionDto pregunta, string nuevoValor)
+    {
+        pregunta.PresentaNovedad = string.IsNullOrEmpty(nuevoValor)
+            ? null
+            : string.Equals(nuevoValor, "Si", StringComparison.OrdinalIgnoreCase);
+        ProgramarGuardado(pregunta);
+        _ = OnRespuestasGuardadas.InvokeAsync();
+    }
+
+    /// <summary>Guarda la sede al elegirla (PUT api/inspecciones/{id}/sede).</summary>
+    private async Task CambiarSedeAsync(string sede)
+    {
+        var anterior = Inspeccion.Sede;
+        Inspeccion.Sede = sede;
+        await CambiarEstadoAsync(EstadoGuardado.Guardando);
+
+        var respuesta = await HttpClientService.CambiarSedeAsync(Inspeccion.IdInspeccion, sede);
+        if (!respuesta.Success)
+        {
+            Inspeccion.Sede = anterior;
+            await CambiarEstadoAsync(EstadoGuardado.Error);
+            Snackbar.Add(respuesta.Message, Severity.Error);
+            return;
+        }
+
+        await CambiarEstadoAsync(EstadoGuardado.Guardado);
+        await OnRespuestasGuardadas.InvokeAsync();
+    }
+
     private async Task EsperarYGuardarAsync(PreguntaEjecucionDto pregunta, CancellationToken token)
     {
         try
@@ -117,7 +208,8 @@ else
                 {
                     IdPregunta = pregunta.IdPregunta,
                     Respuesta = pregunta.Respuesta ?? string.Empty,
-                    Observacion = pregunta.Observacion
+                    Observacion = pregunta.Observacion,
+                    PresentaNovedad = pregunta.PresentaNovedad
                 }
             });
             // Sin StateHasChanged aquí: GuardarAsync ya repinta con InvokeAsync al cambiar el

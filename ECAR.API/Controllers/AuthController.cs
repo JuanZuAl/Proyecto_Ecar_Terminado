@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using ECAR.API.Configuration;
 using ECAR.API.Exceptions;
 using ECAR.API.Services;
@@ -45,7 +44,6 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("validate")]
-    [PermitirCambioPasswordPendiente]
     public async Task<ActionResult<ApiResponse<bool>>> ValidateToken([FromBody] string token)
     {
         var isValid = await _authService.ValidateTokenAsync(token);
@@ -58,48 +56,21 @@ public class AuthController : ControllerBase
         return Ok(ApiResponse<bool>.SuccessResponse(true, "Token válido"));
     }
 
-    [HttpPost("cambiar-password")]
-    [Authorize]
-    [PermitirCambioPasswordPendiente]
-    public async Task<ActionResult<ApiResponse<bool>>> CambiarPassword(CambiarPasswordDto cambio)
-    {
-        if (!long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var idUsuario))
-        {
-            return Unauthorized(ApiResponse<bool>.ErrorResponse("Token inválido"));
-        }
-
-        List<string> errores;
-        try
-        {
-            errores = await _authService.CambiarPasswordAsync(idUsuario, cambio);
-        }
-        catch (CuentaBloqueadaException ex)
-        {
-            return StatusCode(StatusCodes.Status423Locked, ApiResponse<bool>.ErrorResponse(ex.Message));
-        }
-
-        if (errores.Count > 0)
-        {
-            return BadRequest(ApiResponse<bool>.ErrorResponse("No se pudo cambiar la contraseña", errores));
-        }
-
-        return Ok(ApiResponse<bool>.SuccessResponse(true,
-            "Contraseña cambiada exitosamente. Inicie sesión de nuevo con la nueva contraseña"));
-    }
-
+    /// <summary>
+    /// Política de las contraseñas del alta y minutos de inactividad. Desde el 03/11/2026 no hay cambio ni
+    /// restablecimiento de contraseñas en este sistema: los administra una API externa.
+    /// </summary>
     [HttpGet("politica")]
     [AllowAnonymous]
-    [PermitirCambioPasswordPendiente]
     public ActionResult<ApiResponse<PoliticaSeguridadDto>> GetPolitica([FromServices] IOptions<SeguridadOptions> opciones) =>
         Ok(ApiResponse<PoliticaSeguridadDto>.SuccessResponse(opciones.Value.ToDto()));
 
     /// <summary>
     /// Deja constancia del cierre de sesión (evento CierreSesion de §3.3): el cliente lo llama al
-    /// salir y al cerrar por inactividad. Se admite también con un cambio de contraseña pendiente.
+    /// salir y al cerrar por inactividad.
     /// </summary>
     [HttpPost("logout")]
     [Authorize]
-    [PermitirCambioPasswordPendiente]
     public async Task<ActionResult<ApiResponse<bool>>> Logout(
         [FromServices] ECARDbContext context, [FromServices] ICurrentUser currentUser,
         [FromQuery] bool porInactividad = false)

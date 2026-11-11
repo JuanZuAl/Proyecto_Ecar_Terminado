@@ -26,6 +26,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ECAR.API.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logo del encabezado de los PDF: el mismo archivo de la pantalla de inicio, incrustado en el ensamblado. -->
+    <EmbeddedResource Include="..\ECAR.Client\wwwroot\images\logo-ecar.png" Link="Recursos\logo-ecar.png" LogicalName="ECAR.API.logo-ecar.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ECAR.Infrastructure\ECAR.Infrastructure.csproj" />
     <ProjectReference Include="..\ECAR.Shared\ECAR.Shared.csproj" />
   </ItemGroup>

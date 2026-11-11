@@ -11,7 +11,7 @@ namespace ECAR.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Administrador,Técnico,Auditor")]
+    [Authorize(Roles = RolesSistema.Todos)]
     public class PreguntasChecklistController : ControllerBase
     {
         // Si 'ApplicationDbContext' sale remarcado, cámbialo por el nombre de tu DbContext (ej: AppDbContext o EcarDbContext)
@@ -107,7 +107,7 @@ namespace ECAR.API.Controllers
         // 2. POST: api/PreguntasChecklist
         // Crear pregunta con validación de existencia, orden único y roles (Requerimientos Jira #2, #3, #4, #6)
         [HttpPost]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = RolesSistema.Administrador)]
         public async Task<ActionResult<ApiResponse<PreguntaChecklistDto>>> CrearPregunta([FromBody] CreatePreguntaChecklistDto dto)
         {
             var checklistExiste = await _context.Checklists.AnyAsync(c => c.IdChecklist == dto.IdChecklist);
@@ -150,7 +150,7 @@ namespace ECAR.API.Controllers
         // 3. PUT: api/PreguntasChecklist/{id}
         // Editar pregunta bloqueando modificación si ya fue usada en inspecciones (Requerimientos Jira #2, #4, #5, #6)
         [HttpPut("{id}")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = RolesSistema.Administrador)]
         public async Task<ActionResult<ApiResponse<PreguntaChecklistDto>>> EditarPregunta(long id, [FromBody] UpdatePreguntaChecklistDto dto)
         {
             var preguntaExistente = await _context.PreguntasChecklist.FindAsync(id);
@@ -185,7 +185,7 @@ namespace ECAR.API.Controllers
         // 4. DELETE: api/PreguntasChecklist/{id}
         // Eliminar pregunta bloqueando evidencia histórica (Requerimientos Jira #5, #6)
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = RolesSistema.Administrador)]
         public async Task<ActionResult<ApiResponse<bool>>> EliminarPregunta(long id)
         {
             var pregunta = await _context.PreguntasChecklist.FindAsync(id);
@@ -218,9 +218,15 @@ namespace ECAR.API.Controllers
                 return "El texto de la pregunta y el tipo de respuesta son obligatorios.";
             }
 
+            // Desde el 29/10/2026 toda pregunta nueva o editada es Sí/No.
+            if (TiposRespuesta.EsValidoParaGuardar(tipoRespuesta))
+            {
+                return null;
+            }
+
             return TiposRespuesta.EsValido(tipoRespuesta.Trim())
-                ? null
-                : $"El tipo de respuesta '{tipoRespuesta}' no es válido. Valores permitidos: {TiposRespuesta.ValoresPermitidos}";
+                ? TiposRespuesta.MensajeSoloSiNo
+                : $"El tipo de respuesta '{tipoRespuesta}' no es válido. {TiposRespuesta.MensajeSoloSiNo}";
         }
 
         private Task<bool> ChecklistUsadoAsync(long idChecklist) =>

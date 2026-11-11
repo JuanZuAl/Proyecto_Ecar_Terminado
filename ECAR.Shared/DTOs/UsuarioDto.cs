@@ -14,8 +14,5 @@ public class UsuarioDto
     /// <summary>Hasta cuándo está bloqueada por intentos fallidos (UTC); null o pasada si no lo está.</summary>
     public DateTime? BloqueadoHasta { get; set; }
 
-    /// <summary>Tiene una contraseña temporal o caducada que debe cambiar al entrar.</summary>
-    public bool DebeCambiarPassword { get; set; }
-
     public DateTime? UltimoAcceso { get; set; }
 }

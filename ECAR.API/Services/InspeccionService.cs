@@ -29,10 +29,10 @@ public class InspeccionService : IInspeccionService
             throw new KeyNotFoundException($"No se encontró la inspección con ID {inspeccionId}");
         }
 
-        // Punto 7: Solo técnico asignado o Admin
+        // Punto 7: solo quien ejecuta la inspección o el Administrador
         if (!esAdmin && inspeccion.IdUsuario != usuarioId)
         {
-            throw new UnauthorizedAccessException("No tienes permiso para modificar esta inspección.");
+            throw new UnauthorizedAccessException("No tiene permiso para modificar esta inspección.");
         }
 
         // Punto 6: 409 Conflict si la inspección no está 'En curso'
@@ -73,10 +73,12 @@ public class InspeccionService : IInspeccionService
 
             var respuestaExistente = inspeccion.Respuestas.FirstOrDefault(r => r.IdPregunta == item.IdPregunta);
 
+            // «¿Presenta novedad?» (29/10/2026) se guarda con la respuesta: es lo que decide la novedad al firmar.
             if (respuestaExistente != null)
             {
                 respuestaExistente.Respuesta = valor;
                 respuestaExistente.Observacion = item.Observacion;
+                respuestaExistente.PresentaNovedad = item.PresentaNovedad;
             }
             else
             {
@@ -85,7 +87,8 @@ public class InspeccionService : IInspeccionService
                     IdInspeccion = inspeccionId,
                     IdPregunta = item.IdPregunta,
                     Respuesta = valor,
-                    Observacion = item.Observacion
+                    Observacion = item.Observacion,
+                    PresentaNovedad = item.PresentaNovedad
                 });
             }
         }
@@ -93,8 +96,8 @@ public class InspeccionService : IInspeccionService
         await _context.SaveChangesAsync();
     }
 
-    // Punto 1 y 7: GET /api/inspecciones/{id}/respuestas con validación de técnico
-    public async Task<List<RespuestaInspeccionDto>> ObtenerRespuestasAsync(long inspeccionId, long usuarioId, bool esAdmin, bool esAuditor)
+    // Punto 1 y 7: GET /api/inspecciones/{id}/respuestas con la regla de lectura de AccesoInspeccion
+    public async Task<List<RespuestaInspeccionDto>> ObtenerRespuestasAsync(long inspeccionId, long usuarioId, bool leeTodas)
     {
         var inspeccion = await _context.Inspecciones
             .AsNoTracking()
@@ -105,9 +108,10 @@ public class InspeccionService : IInspeccionService
             throw new KeyNotFoundException($"No se encontró la inspección con ID {inspeccionId}");
         }
 
-        if (!esAdmin && !esAuditor && inspeccion.IdUsuario != usuarioId)
+        // El Operador, las de sus inspecciones
+        if (!leeTodas && inspeccion.IdUsuario != usuarioId)
         {
-            throw new UnauthorizedAccessException("No tienes permiso para consultar las respuestas de esta inspección.");
+            throw new UnauthorizedAccessException("No tiene permiso para consultar las respuestas de esta inspección.");
         }
 
         return await _context.RespuestasInspeccion
@@ -119,7 +123,8 @@ public class InspeccionService : IInspeccionService
                 IdInspeccion = r.IdInspeccion,
                 IdPregunta = r.IdPregunta,
                 Respuesta = r.Respuesta ?? string.Empty,
-                Observacion = r.Observacion
+                Observacion = r.Observacion,
+                PresentaNovedad = r.PresentaNovedad
             })
             .ToListAsync();
     }
@@ -158,7 +163,8 @@ public class InspeccionService : IInspeccionService
                 Observaciones = i.Observaciones,
                 TieneFirma = !string.IsNullOrEmpty(i.FirmaDigital),
                 TotalEvidencias = i.Evidencias.Count(e => !e.Retirada),
-                TotalHallazgos = i.Hallazgos.Count,
+                TotalNovedades = i.Novedades.Count,
+                NovedadesPendientes = i.Novedades.Count(n => n.Estado == NovedadEstados.Pendiente),
                 MotivoAnulacion = i.MotivoAnulacion,
                 FechaAnulacion = i.FechaAnulacion,
                 IdUsuarioAnulacion = i.IdUsuarioAnulacion,
@@ -169,7 +175,7 @@ public class InspeccionService : IInspeccionService
 
     // Punto 8 y 9: Filtros search, idInspeccion y pageSize máximo 100
     public async Task<PagedResultDto<RespuestaInspeccionDto>> ObtenerRespuestasPaginadasAsync(
-        int pageNumber, int pageSize, string? search, long? idInspeccion, long usuarioId, bool esAdmin, bool esAuditor)
+        int pageNumber, int pageSize, string? search, long? idInspeccion, long usuarioId, bool leeTodas)
     {
         // Punto 9: Limitar a máximo 100
         int size = Math.Clamp(pageSize, 1, 100);
@@ -180,8 +186,8 @@ public class InspeccionService : IInspeccionService
             .Include(r => r.Inspeccion)
             .AsQueryable();
 
-        // Punto 7: Restringir consulta por Técnico
-        if (!esAdmin && !esAuditor)
+        // Punto 7: el Operador, solo las de sus inspecciones
+        if (!leeTodas)
         {
             query = query.Where(r => r.Inspeccion.IdUsuario == usuarioId);
         }
@@ -212,7 +218,8 @@ public class InspeccionService : IInspeccionService
                 IdInspeccion = r.IdInspeccion,
                 IdPregunta = r.IdPregunta,
                 Respuesta = r.Respuesta ?? string.Empty,
-                Observacion = r.Observacion
+                Observacion = r.Observacion,
+                PresentaNovedad = r.PresentaNovedad
             })
             .ToListAsync();
 

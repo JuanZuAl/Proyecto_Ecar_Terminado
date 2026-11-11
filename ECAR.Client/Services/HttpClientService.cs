@@ -375,41 +375,16 @@ public class HttpClientService
         }
     }
 
-    public async Task<ApiResponse<ChecklistDto>?> CreateChecklistAsync(CreateChecklistDto createDto)
-    {
-        try
-        {
-            await AddAuthorizationHeaderAsync();
-            var response = await _httpClient.PostAsJsonAsync("api/checklists", createDto);
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<ChecklistDto>>();
-            await RemoveAuthorizationHeaderAsync();
-            return apiResponse;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error creating checklist: {ex.Message}");
-            await RemoveAuthorizationHeaderAsync();
-            return null;
-        }
-    }
+    /// <summary>
+    /// Fase 5 (B-05): con el nombre de un checklist activo el API responde 409 y pide usar «Nueva versión»; el motivo
+    /// llega en Message, listo para mostrar. Como los métodos de la Fase 4, nunca devuelve null.
+    /// </summary>
+    public Task<ApiResponse<ChecklistDto>> CreateChecklistAsync(CreateChecklistDto createDto) =>
+        EnviarAsync<ChecklistDto>(HttpMethod.Post, "api/checklists", createDto);
 
-    public async Task<ApiResponse<ChecklistDto>?> UpdateChecklistAsync(long id, UpdateChecklistDto updateDto)
-    {
-        try
-        {
-            await AddAuthorizationHeaderAsync();
-            var response = await _httpClient.PutAsJsonAsync($"api/checklists/{id}", updateDto);
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<ChecklistDto>>();
-            await RemoveAuthorizationHeaderAsync();
-            return apiResponse;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error updating checklist: {ex.Message}");
-            await RemoveAuthorizationHeaderAsync();
-            return null;
-        }
-    }
+    /// <summary>Renombrar con el nombre de otro checklist activo también responde 409 (B-05). Nunca devuelve null.</summary>
+    public Task<ApiResponse<ChecklistDto>> UpdateChecklistAsync(long id, UpdateChecklistDto updateDto) =>
+        EnviarAsync<ChecklistDto>(HttpMethod.Put, $"api/checklists/{id}", updateDto);
 
     /// <summary>Fase 4 (§3.3): desactivar un checklist exige motivo, que queda en la auditoría.</summary>
     public Task<ApiResponse<bool>> DeleteChecklistAsync(long id, string motivo) =>
@@ -1091,24 +1066,6 @@ public class HttpClientService
         }
     }
 
-    public async Task<ApiResponse<InspeccionDto>?> UpdateInspeccionAsync(long id, UpdateInspeccionDto updateDto)
-    {
-        try
-        {
-            await AddAuthorizationHeaderAsync();
-            var response = await _httpClient.PutAsJsonAsync($"api/inspecciones/{id}", updateDto);
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<InspeccionDto>>();
-            await RemoveAuthorizationHeaderAsync();
-            return apiResponse;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error updating inspeccion: {ex.Message}");
-            await RemoveAuthorizationHeaderAsync();
-            return null;
-        }
-    }
-
 
     public async Task<ApiResponse<PagedResultDto<EvidenciaDto>>?> GetEvidenciasAsync(int page = 1, int pageSize = 10,
         string? search = null, long? idInspeccion = null)
@@ -1159,99 +1116,6 @@ public class HttpClientService
             return null;
         }
     }
-
-    // Métodos del API de Hallazgos
-    public async Task<ApiResponse<PagedResultDto<HallazgoDto>>?> GetHallazgosAsync(int page = 1, int pageSize = 10,
-        string? search = null, long? idInspeccion = null, string? estado = null)
-    {
-        try
-        {
-            await AddAuthorizationHeaderAsync();
-
-            var query = $"api/hallazgos?page={page}&pageSize={pageSize}";
-            if (!string.IsNullOrEmpty(search))
-            {
-                query += $"&search={Uri.EscapeDataString(search)}";
-            }
-
-            if (idInspeccion.HasValue)
-            {
-                query += $"&idInspeccion={idInspeccion.Value}";
-            }
-
-            if (!string.IsNullOrEmpty(estado))
-            {
-                query += $"&estado={Uri.EscapeDataString(estado)}";
-            }
-
-            var response = await _httpClient.GetAsync(query);
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<PagedResultDto<HallazgoDto>>>();
-
-            await RemoveAuthorizationHeaderAsync();
-            return apiResponse;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error getting hallazgos: {ex.Message}");
-            await RemoveAuthorizationHeaderAsync();
-            return null;
-        }
-    }
-
-    public async Task<ApiResponse<HallazgoDto>?> GetHallazgoAsync(long id)
-    {
-        try
-        {
-            await AddAuthorizationHeaderAsync();
-            var response = await _httpClient.GetAsync($"api/hallazgos/{id}");
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<HallazgoDto>>();
-            await RemoveAuthorizationHeaderAsync();
-            return apiResponse;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error getting hallazgo: {ex.Message}");
-            await RemoveAuthorizationHeaderAsync();
-            return null;
-        }
-    }
-
-    public async Task<ApiResponse<HallazgoDto>?> CreateHallazgoAsync(CreateHallazgoDto createDto)
-    {
-        try
-        {
-            await AddAuthorizationHeaderAsync();
-            var response = await _httpClient.PostAsJsonAsync("api/hallazgos", createDto);
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<HallazgoDto>>();
-            await RemoveAuthorizationHeaderAsync();
-            return apiResponse;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error creating hallazgo: {ex.Message}");
-            await RemoveAuthorizationHeaderAsync();
-            return null;
-        }
-    }
-
-    public async Task<ApiResponse<HallazgoDto>?> UpdateHallazgoAsync(long id, UpdateHallazgoDto updateDto)
-    {
-        try
-        {
-            await AddAuthorizationHeaderAsync();
-            var response = await _httpClient.PutAsJsonAsync($"api/hallazgos/{id}", updateDto);
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<HallazgoDto>>();
-            await RemoveAuthorizationHeaderAsync();
-            return apiResponse;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error updating hallazgo: {ex.Message}");
-            await RemoveAuthorizationHeaderAsync();
-            return null;
-        }
-    }
-
 
     public async Task<ApiResponse<List<PreguntaChecklistDto>>?> GetPreguntasChecklistAsync(long idChecklist)
     {
@@ -1330,6 +1194,13 @@ public class HttpClientService
     /// Devuelve el estado completo recalculado por el servidor —incluidos los contadores—,
     /// así que no hace falta volver a pedir la ejecución tras guardar.
     /// </summary>
+    /// <summary>
+    /// Sede de la inspección en curso, Rionegro o Medellín (29/10/2026): obligatoria para firmarla. Nunca devuelve
+    /// null; el 400 trae el motivo en Message.
+    /// </summary>
+    public Task<ApiResponse<InspeccionEjecucionDto>> CambiarSedeAsync(long idInspeccion, string sede) =>
+        EnviarAsync<InspeccionEjecucionDto>(HttpMethod.Put, $"api/inspecciones/{idInspeccion}/sede", new SedeDto { Sede = sede });
+
     public async Task<ApiResponse<InspeccionEjecucionDto>?> GuardarRespuestasAsync(long idInspeccion,
         GuardarRespuestasDto guardarDto)
     {
@@ -1535,7 +1406,7 @@ public class HttpClientService
     }
 
     // =============================================================================================
-    // Fase 4 — hallazgos, auditoría, reportes y Parte 11 (PLAN_FASE4_TAREAS §3.4)
+    // Fase 4 — novedades, auditoría, reportes y Parte 11 (PLAN_FASE4_TAREAS §3.4)
     //
     // Los endpoints se publican a lo largo de la fase. Mientras uno no existe, el API responde 404
     // sin cuerpo; estos métodos nunca devuelven null: devuelven Success = false con un mensaje que
@@ -1581,7 +1452,7 @@ public class HttpClientService
     private static string ConFiltros(string ruta, params (string Clave, object? Valor)[] filtros)
     {
         var partes = new List<string>();
-        foreach (var (clave, valor) in filtros)
+        foreach (var (clave, valor) in Expandir(filtros))
         {
             var texto = valor switch
             {
@@ -1609,6 +1480,28 @@ public class HttpClientService
     }
 
     /// <summary>
+    /// Una lista (varias plantas, varios equipos) va en la URL repitiendo la clave: ?plantas=A&amp;plantas=B,
+    /// que es como ASP.NET la convierte en List.
+    /// </summary>
+    private static IEnumerable<(string Clave, object? Valor)> Expandir(IEnumerable<(string Clave, object? Valor)> filtros)
+    {
+        foreach (var (clave, valor) in filtros)
+        {
+            if (valor is System.Collections.IEnumerable lista and not string)
+            {
+                foreach (var elemento in lista)
+                {
+                    yield return (clave, elemento);
+                }
+            }
+            else
+            {
+                yield return (clave, valor);
+            }
+        }
+    }
+
+    /// <summary>
     /// Descarga un archivo del API (PDF, Excel) y lo entrega al navegador con wwwroot/js/descargas.js.
     /// El archivo pasa por un DotNetStreamReference: no se convierte a base64 ni se carga dos veces.
     /// </summary>
@@ -1622,7 +1515,9 @@ public class HttpClientService
             if (!response.IsSuccessStatusCode)
             {
                 var error = await LectorRespuestaApi.LeerAsync<bool>(response);
-                return ApiResponse<bool>.ErrorResponse(error.Message, error.Errors);
+                var fallo = ApiResponse<bool>.ErrorResponse(error.Message, error.Errors);
+                fallo.CodigoHttp = error.CodigoHttp;
+                return fallo;
             }
 
             var tipo = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
@@ -1664,23 +1559,34 @@ public class HttpClientService
                 ("desde", filtro.Desde), ("hasta", filtro.Hasta)),
             $"ECAR_auditoria_{DateTime.Now:yyyyMMdd_HHmm}.{formato}");
 
-    // --- Hallazgos (endpoints 4, 5, 8 y 9; el alta y la edición usan Create/UpdateHallazgoAsync) ---
+    // --- Novedades: nacen al firmar una inspección y se resuelven con firma ---
 
-    public Task<ApiResponse<PagedResultDto<HallazgoDto>>> BuscarHallazgosAsync(HallazgoFiltroDto filtro,
+    public Task<ApiResponse<PagedResultDto<NovedadDto>>> BuscarNovedadesAsync(NovedadFiltroDto filtro,
         int page = 1, int pageSize = 10) =>
-        EnviarAsync<PagedResultDto<HallazgoDto>>(HttpMethod.Get, ConFiltros("api/hallazgos",
+        EnviarAsync<PagedResultDto<NovedadDto>>(HttpMethod.Get, ConFiltros("api/novedades",
             ("page", page), ("pageSize", pageSize), ("search", filtro.Search), ("estado", filtro.Estado),
             ("criticidad", filtro.Criticidad), ("idEquipo", filtro.IdEquipo), ("idInspeccion", filtro.IdInspeccion),
             ("desde", filtro.Desde), ("hasta", filtro.Hasta)));
 
-    public Task<ApiResponse<HallazgoDetalleDto>> GetHallazgoDetalleAsync(long id) =>
-        EnviarAsync<HallazgoDetalleDto>(HttpMethod.Get, $"api/hallazgos/{id}");
+    public Task<ApiResponse<NovedadDetalleDto>> GetNovedadAsync(long id) =>
+        EnviarAsync<NovedadDetalleDto>(HttpMethod.Get, $"api/novedades/{id}");
 
-    public Task<ApiResponse<HallazgoDto>> CambiarEstadoHallazgoAsync(long id, CambiarEstadoHallazgoDto cambio) =>
-        EnviarAsync<HallazgoDto>(HttpMethod.Post, $"api/hallazgos/{id}/estado", cambio);
+    /// <summary>
+    /// Firma la resolución. Una contraseña errónea vuelve sin Errors (el diálogo de firma sigue
+    /// abierto); lo que falte en la solución o la firma vuelve en Errors.
+    /// </summary>
+    public Task<ApiResponse<NovedadDto>> ResolverNovedadAsync(long id, ResolverNovedadDto resolucion) =>
+        EnviarAsync<NovedadDto>(HttpMethod.Post, $"api/novedades/{id}/resolver", resolucion);
 
-    public Task<ApiResponse<HallazgoDto>> AnularHallazgoAsync(long id, string motivo) =>
-        EnviarAsync<HallazgoDto>(HttpMethod.Post, $"api/hallazgos/{id}/anular", new MotivoDto { Motivo = motivo });
+    public Task<ApiResponse<NovedadDto>> AnularNovedadAsync(long id, string motivo) =>
+        EnviarAsync<NovedadDto>(HttpMethod.Post, $"api/novedades/{id}/anular", new MotivoDto { Motivo = motivo });
+
+    public Task<ApiResponse<IntegridadInspeccionDto>> VerificarIntegridadNovedadAsync(long id) =>
+        EnviarAsync<IntegridadInspeccionDto>(HttpMethod.Get, $"api/novedades/{id}/integridad");
+
+    /// <summary>Vuelve a poner en cola el correo de la novedad a la mesa de ayuda (Administrador).</summary>
+    public Task<ApiResponse<bool>> ReenviarCorreoNovedadAsync(long id) =>
+        EnviarAsync<bool>(HttpMethod.Post, $"api/novedades/{id}/notificar");
 
     // --- Inspecciones y evidencias (endpoints 10, 11, 13 y 14) ---
 
@@ -1692,9 +1598,43 @@ public class HttpClientService
     public Task<ApiResponse<EvidenciaDto>> RetirarEvidenciaAsync(long id, string motivo) =>
         EnviarAsync<EvidenciaDto>(HttpMethod.Post, $"api/evidencias/{id}/retirar", new MotivoDto { Motivo = motivo });
 
-    /// <summary>Indicadores de la portada (SRS §6 "Dashboard"); nunca devuelve null.</summary>
-    public Task<ApiResponse<DashboardDto>> GetDashboardAsync() =>
-        EnviarAsync<DashboardDto>(HttpMethod.Get, "api/dashboard");
+    /// <summary>
+    /// Indicadores del tablero (SRS §6; Fase 5, B-01). Sin filtros, el mes en curso; desde y hasta son días en hora
+    /// de Colombia y el rango no puede pasar de un año (400). La respuesta trae en Filtros los que se aplicaron.
+    /// Nunca devuelve null. Desde el 29/10/2026 acepta varias plantas; sin plantas, todas. Con total («Total
+    /// general», 30/10/2026), todo el historial: las fechas no se envían y no hay límite de un año.
+    /// </summary>
+    public Task<ApiResponse<DashboardDto>> GetDashboardAsync(DateTime? desde = null, DateTime? hasta = null,
+        IReadOnlyCollection<string>? plantas = null, bool total = false) =>
+        EnviarAsync<DashboardDto>(HttpMethod.Get, ConFiltros("api/dashboard", FiltrosTablero(desde, hasta, plantas, total)));
+
+    /// <summary>Tendencia del tablero (B-02): de 1 a 52 semanas que empiezan el lunes, la actual incluida.</summary>
+    public Task<ApiResponse<DashboardTendenciaDto>> GetTendenciaTableroAsync(int semanas = 8,
+        IReadOnlyCollection<string>? plantas = null) =>
+        EnviarAsync<DashboardTendenciaDto>(HttpMethod.Get,
+            ConFiltros("api/dashboard/tendencia", ("semanas", semanas), ("planta", plantas)));
+
+    /// <summary>
+    /// Tendencia del mismo periodo que el tablero (30/10/2026): por semana hasta 92 días y por mes en un periodo
+    /// más largo o en el total general (Agrupacion dice cuál).
+    /// </summary>
+    public Task<ApiResponse<DashboardTendenciaDto>> GetTendenciaTableroAsync(DateTime? desde, DateTime? hasta,
+        IReadOnlyCollection<string>? plantas, bool total = false) =>
+        EnviarAsync<DashboardTendenciaDto>(HttpMethod.Get,
+            ConFiltros("api/dashboard/tendencia", FiltrosTablero(desde, hasta, plantas, total)));
+
+    /// <summary>El tablero en PDF con los mismos filtros (B-03); cada descarga queda en la auditoría.</summary>
+    public Task<ApiResponse<bool>> DescargarTableroPdfAsync(DateTime? desde = null, DateTime? hasta = null,
+        IReadOnlyCollection<string>? plantas = null, bool total = false) =>
+        DescargarArchivoAsync(ConFiltros("api/dashboard/pdf", FiltrosTablero(desde, hasta, plantas, total)),
+            $"ECAR_tablero_{DateTime.Now:yyyyMMdd_HHmm}.pdf");
+
+    /// <summary>En el total general solo van las plantas y total=true; si no, las fechas y las plantas.</summary>
+    private static (string Clave, object? Valor)[] FiltrosTablero(DateTime? desde, DateTime? hasta,
+        IReadOnlyCollection<string>? plantas, bool total) =>
+        total
+            ? [("planta", plantas), ("total", true)]
+            : [("desde", desde), ("hasta", hasta), ("planta", plantas)];
 
     public Task<ApiResponse<IntegridadInspeccionDto>> VerificarIntegridadInspeccionAsync(long id) =>
         EnviarAsync<IntegridadInspeccionDto>(HttpMethod.Get, $"api/inspecciones/{id}/integridad");
@@ -1717,17 +1657,23 @@ public class HttpClientService
         DescargarArchivoAsync(UrlReporte(tipo, filtro, formato, null, null),
             $"ECAR_{tipo}_{filtro.Desde:yyyyMMdd}_{filtro.Hasta:yyyyMMdd}.{formato}");
 
+    /// <summary>
+    /// Usuarios para el filtro «Usuario» de los reportes (Fase 5, B-04): Administrador y Supervisor; busca en el
+    /// nombre y el correo y devuelve como máximo 20, con id, nombre y correo. En Reportes sustituye a
+    /// GetUsuariosAsync, que es solo del Administrador y le fallaba al Supervisor.
+    /// </summary>
+    public Task<ApiResponse<List<UsuarioBusquedaDto>>> BuscarUsuariosReportesAsync(string? texto = null) =>
+        EnviarAsync<List<UsuarioBusquedaDto>>(HttpMethod.Get, ConFiltros("api/reportes/usuarios", ("texto", texto)));
+
     private static string UrlReporte(string tipo, ReporteFiltroDto filtro, string formato, int? page, int? pageSize) =>
         ConFiltros($"api/reportes/{tipo}",
             ("formato", formato), ("page", page), ("pageSize", pageSize),
-            ("desde", filtro.Desde), ("hasta", filtro.Hasta), ("planta", filtro.Planta), ("area", filtro.Area),
-            ("idEquipo", filtro.IdEquipo), ("idUsuario", filtro.IdUsuario), ("estado", filtro.Estado),
-            ("criticidad", filtro.Criticidad));
+            ("desde", filtro.Desde), ("hasta", filtro.Hasta), ("plantas", filtro.Plantas), ("areas", filtro.Areas),
+            ("idEquipos", filtro.IdEquipos), ("idUsuarios", filtro.IdUsuarios), ("estados", filtro.Estados),
+            ("criticidades", filtro.Criticidades), ("sedes", filtro.Sedes));
 
-    // --- Cuentas (endpoints 23 a 26; el login sigue en AuthService) ---
-
-    public Task<ApiResponse<bool>> CambiarPasswordAsync(CambiarPasswordDto cambio) =>
-        EnviarAsync<bool>(HttpMethod.Post, "api/auth/cambiar-password", cambio);
+    // --- Cuentas (el login sigue en AuthService). Sin cambiar ni restablecer contraseñas desde el 03/11/2026:
+    // lo hará una API externa. Queda el desbloqueo por el Administrador. ---
 
     /// <summary>Política de contraseñas y minutos de inactividad. Es anónimo.</summary>
     public Task<ApiResponse<PoliticaSeguridadDto>> GetPoliticaSeguridadAsync() =>
@@ -1739,10 +1685,6 @@ public class HttpClientService
     /// </summary>
     public Task<ApiResponse<bool>> CerrarSesionAsync(bool porInactividad = false) =>
         EnviarAsync<bool>(HttpMethod.Post, ConFiltros("api/auth/logout", ("porInactividad", porInactividad)));
-
-    public Task<ApiResponse<PasswordTemporalDto>> RestablecerPasswordAsync(long idUsuario, string motivo) =>
-        EnviarAsync<PasswordTemporalDto>(HttpMethod.Post, $"api/usuarios/{idUsuario}/restablecer-password",
-            new MotivoDto { Motivo = motivo });
 
     public Task<ApiResponse<bool>> DesbloquearUsuarioAsync(long idUsuario, string motivo) =>
         EnviarAsync<bool>(HttpMethod.Post, $"api/usuarios/{idUsuario}/desbloquear", new MotivoDto { Motivo = motivo });

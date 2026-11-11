@@ -10,20 +10,25 @@
             <MudProgressCircular Indeterminate="true" />
         </div>
     }
-    else if (equipo == null)
+    else
     {
+        @* Quien escanea el QR no ha pasado por el login: la marca de ECAR va aquí, arriba de la tarjeta (M-08). *@
+        <div class="qr-columna">
+        <img src="images/logo-ecar.png" alt="ECAR Laboratorios" class="qr-logo" />
+        @if (equipo == null)
+        {
         <MudCard Class="qr-card">
-            <MudCardContent Class="text-center pa-6">
+            <MudCardContent Class="d-flex flex-column align-center pa-6">
                 <MudIcon Icon="@Icons.Material.Filled.QrCodeScanner" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6" Class="mt-3">Código no encontrado</MudText>
-                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+                <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-3">Código no encontrado</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center" Class="mud-text-secondary mt-1">
                     Este código QR no corresponde a ningún equipo registrado.
                 </MudText>
             </MudCardContent>
         </MudCard>
-    }
-    else
-    {
+        }
+        else
+        {
         <MudCard Class="qr-card">
             <MudCardHeader>
                 <CardHeaderContent>
@@ -88,18 +93,22 @@
                                         Versión @checklist.Version
                                     </MudText>
                                 </div>
-                                <div class="d-flex align-center gap-2">
-                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Activo</MudChip>
-                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => IrAIniciarInspeccion(idEquipoActual, idChecklistActual))">
-                                        Iniciar
-                                    </MudButton>
-                                </div>
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">Activo</MudChip>
                             </div>
+                            @* Se usa con el dedo, de pie junto al equipo: botón de ancho completo y de al menos 44 px
+                               de alto (antes medía 64 × 23 px). *@
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" FullWidth="true"
+                                       Class="mt-3" Style="min-height: 44px;" StartIcon="@Icons.Material.Filled.PlayArrow"
+                                       OnClick="@(() => IrAIniciarInspeccion(idEquipoActual, idChecklistActual))">
+                                Iniciar inspección
+                            </MudButton>
                         </MudPaper>
                     }
                 }
             </MudCardContent>
         </MudCard>
+        }
+        </div>
     }
 </div>
 

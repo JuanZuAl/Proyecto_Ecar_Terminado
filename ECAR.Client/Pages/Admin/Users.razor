@@ -38,7 +38,7 @@
                         fallidos en esta lista. Se desbloquean solas pasado el tiempo de bloqueo o con «Desbloquear».
                     </MudAlert>
                 }
-                <MudTable Items="usuarios" Hover="true" Striped="true" Elevation="0">
+                <MudTable Items="usuarios" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md">
                     <HeaderContent>
                         <MudTh>ID</MudTh>
                         <MudTh>Nombre</MudTh>
@@ -46,14 +46,14 @@
                         <MudTh>Usuario AD</MudTh>
                         <MudTh>Roles</MudTh>
                         <MudTh>Estado</MudTh>
-                        <MudTh>Acciones</MudTh>
+                        <MudTh Class="col-acciones">Acciones</MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd>@context.IdUsuario.ToString()</MudTd>
-                        <MudTd>@context.Nombre</MudTd>
-                        <MudTd>@context.Correo</MudTd>
-                        <MudTd>@(context.UsuarioAD ?? "-")</MudTd>
-                        <MudTd>
+                        <MudTd DataLabel="ID">@context.IdUsuario.ToString()</MudTd>
+                        <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+                        <MudTd DataLabel="Correo">@context.Correo</MudTd>
+                        <MudTd DataLabel="Usuario AD">@(context.UsuarioAD ?? "-")</MudTd>
+                        <MudTd DataLabel="Roles">
                             @if (context.Roles != null && context.Roles.Any())
                             {
                                 @string.Join(", ", context.Roles)
@@ -63,7 +63,7 @@
                                 <MudText Typo="Typo.caption">Sin roles</MudText>
                             }
                         </MudTd>
-                        <MudTd>
+                        <MudTd DataLabel="Estado">
                             <MudChip T="string" Color="@(context.Activo ? Color.Success : Color.Error)" 
                                 Size="Size.Small" Variant="Variant.Outlined" Text="@(context.Activo ? "Activo" : "Inactivo")" />
                             @if (EstaBloqueado(context))
@@ -71,31 +71,25 @@
                                 <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled"
                                     Text="@($"Bloqueada hasta {context.BloqueadoHasta!.Value.ToLocalTime():HH:mm}")" />
                             }
-                            @if (context.DebeCambiarPassword)
-                            {
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined"
-                                    Text="Contraseña temporal" title="Debe cambiarla al entrar" />
-                            }
                         </MudTd>
-                        <MudTd>
-                            <div class="d-flex flex-wrap gap-1">
+                        <MudTd DataLabel="Acciones" Class="col-acciones">
+                            <div class="d-flex flex-wrap justify-end gap-1">
                                 <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" 
                                     StartIcon="@Icons.Material.Filled.Edit" OnClick="() => OpenEditDialog(context)" Class="action-button">
                                     Editar
                                 </MudButton>
-                                <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" 
-                                    StartIcon="@Icons.Material.Filled.Delete" OnClick="() => DeleteUser(context)" Class="action-button">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled"
+                                           Color="@(context.Activo ? Color.Error : Color.Primary)"
+                                           StartIcon="@(context.Activo ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)"
+                                           OnClick="() => DeleteUser(context)" Class="action-button">
                                     @(context.Activo ? "Desactivar" : "Activar")
                                 </MudButton>
-                                @* Fase 4 (Parte 11 §11.300): contraseña temporal y desbloqueo, ambos con motivo. *@
-                                <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" 
-                                    StartIcon="@Icons.Material.Filled.LockReset" OnClick="() => RestablecerPassword(context)" Class="action-button">
-                                    Restablecer contraseña
-                                </MudButton>
+                                @* Parte 11 §11.300(d): desbloqueo con motivo. Desde el 03/11/2026 no se restablecen
+                                   contraseñas aquí: lo hará una API externa. *@
                                 @if (EstaBloqueado(context))
                                 {
-                                    <MudButton Size="Size.Small" Color="Color.Info" Variant="Variant.Filled"
-                                        StartIcon="@Icons.Material.Filled.LockOpen" OnClick="() => DesbloquearUsuario(context)" Class="action-button">
+                                    <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
+                                               StartIcon="@Icons.Material.Filled.LockOpen" OnClick="() => DesbloquearUsuario(context)" Class="action-button">
                                         Desbloquear
                                     </MudButton>
                                 }
@@ -127,7 +121,9 @@
     private int currentPage = 1;
     private int pageSize = 10;
     private int totalPages = 1;
-    private bool isLoading = false;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -135,6 +131,7 @@
         // comprobación, otro rol dispararía peticiones que el API rechaza con 403 (guía §3.5).
         if (!await AuthorizationService.IsAdminAsync())
         {
+            isLoading = false;
             return;
         }
 
@@ -175,7 +172,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             usuarios = new List<UsuarioDto>();
             availableRoles = new List<RolDto>();
         }
@@ -219,37 +216,12 @@
         }
     }
 
-    // Endpoint 25: el servidor genera una contraseña temporal que solo se ve esta vez; el usuario
-    // debe cambiarla al entrar. El motivo queda en la auditoría.
-    private async Task RestablecerPassword(UsuarioDto usuario)
-    {
-        var motivo = await MotivoDialog.PedirAsync(DialogService, "Restablecer contraseña",
-            $"Se generará una contraseña temporal para '{usuario.Nombre}'. El usuario deberá cambiarla al iniciar sesión.",
-            "Restablecer", Color.Warning);
-        if (motivo is null)
-        {
-            return;
-        }
-
-        var respuesta = await HttpClientService.RestablecerPasswordAsync(usuario.IdUsuario, motivo);
-        if (respuesta.Success && respuesta.Data is { } temporal)
-        {
-            await PasswordTemporalDialog.MostrarAsync(DialogService, usuario.Nombre, temporal.PasswordTemporal);
-            // Restablecer también desbloquea y marca «Contraseña temporal»: se recarga la lista.
-            await LoadDataAsync();
-        }
-        else
-        {
-            Snackbar.Add(respuesta.Message ?? "No se pudo completar la accion", Severity.Error);
-        }
-    }
-
     // Endpoint 26: quita el bloqueo por intentos fallidos. El motivo queda en la auditoría.
     private async Task DesbloquearUsuario(UsuarioDto usuario)
     {
         var motivo = await MotivoDialog.PedirAsync(DialogService, "Desbloquear cuenta",
             $"La cuenta de '{usuario.Nombre}' volverá a poder iniciar sesión.",
-            "Desbloquear", Color.Info);
+            "Desbloquear", Color.Warning);
         if (motivo is null)
         {
             return;
@@ -299,7 +271,7 @@
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+                Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             }
             finally
             {

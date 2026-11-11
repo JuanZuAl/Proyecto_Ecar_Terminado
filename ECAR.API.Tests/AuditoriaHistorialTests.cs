@@ -74,7 +74,7 @@ public class AuditoriaHistorialTests
         var modificar = Fila("Inspecciones", 10, AuditoriaAcciones.Modificar, Base.AddHours(1));
         context.Auditoria.AddRange(cerrar, crear, modificar,
             Fila("Inspecciones", 11, AuditoriaAcciones.Crear, Base.AddMinutes(30)),
-            Fila("Hallazgos", 10, AuditoriaAcciones.Crear, Base.AddMinutes(45)));
+            Fila("Novedades", 10, AuditoriaAcciones.Crear, Base.AddMinutes(45)));
         await context.SaveChangesAsync();
 
         var historial = await HistorialAsync(context, "Inspecciones", 10);
@@ -136,9 +136,10 @@ public class AuditoriaHistorialTests
         var motivo = new MotivoCambio();
         await using var context = NuevoContexto(new ContextoAuditoriaFalso(motivo));
         var tecnico = new Usuario { Nombre = "Ana", Correo = "ana@ecar.test", PasswordHash = "hash", Activo = true };
+        var admin = new Usuario { Nombre = "Admin", Correo = "admin@ecar.test", PasswordHash = "hash", Activo = true };
         var equipo = new Equipo { CodigoInterno = "EQ-001", ActivoFijo = "AF-001", NombreEquipo = "Balanza", Activo = true };
         var checklist = new Checklist { Nombre = "Diario", Version = "1.0", Activo = true };
-        context.AddRange(tecnico, equipo, checklist);
+        context.AddRange(tecnico, admin, equipo, checklist);
         await context.SaveChangesAsync();
         var inspeccion = new Inspeccion
         {
@@ -152,12 +153,15 @@ public class AuditoriaHistorialTests
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
-        var controller = new InspeccionesController(context, new FakeCurrentUser(tecnico.IdUsuario, "Técnico"),
+        var controller = new InspeccionesController(context, new FakeCurrentUser(tecnico.IdUsuario, "Operador"),
             new InspeccionService(context), new FakeStorage(), NullLogger<InspeccionesController>.Instance, motivo);
         await controller.UpdateInspeccion(inspeccion.IdInspeccion, new UpdateInspeccionDto { Observaciones = "Equipo apagado" });
         context.ChangeTracker.Clear();
         motivo.Establecer(null);
-        await controller.AnularInspeccion(inspeccion.IdInspeccion, new MotivoDto { Motivo = "Se inició sobre el equipo equivocado" });
+        // La anula el Administrador: es el único que puede (22/10/2026).
+        var comoAdmin = new InspeccionesController(context, new FakeCurrentUser(admin.IdUsuario, RolesSistema.Administrador),
+            new InspeccionService(context), new FakeStorage(), NullLogger<InspeccionesController>.Instance, motivo);
+        await comoAdmin.AnularInspeccion(inspeccion.IdInspeccion, new MotivoDto { Motivo = "Se inició sobre el equipo equivocado" });
 
         var historial = await HistorialAsync(context, "Inspecciones", inspeccion.IdInspeccion);
 

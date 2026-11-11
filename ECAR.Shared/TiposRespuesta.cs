@@ -26,6 +26,22 @@ public static class TiposRespuesta
     public static bool EsValido(string? tipo) =>
         Todos.Any(t => t.Valor == tipo);
 
+    /// <summary>
+    /// Desde el 29/10/2026 toda pregunta que se crea o se edita es Sí/No (decisión de ECAR); «Texto» queda
+    /// solo para leer las preguntas que ya existían.
+    /// </summary>
+    public static bool EsValidoParaGuardar(string? tipo) => tipo?.Trim() == SiNo;
+
+    /// <summary>
+    /// true si la pregunta pide escribir una respuesta. Desde el 04/11/2026 una pregunta Sí/No se responde solo con
+    /// «¿Presenta novedad?» (sin marcar es «No»), así que solo las de texto, que quedan de checklists anteriores, la
+    /// piden; y solo para ellas cuenta «Obligatoria».
+    /// </summary>
+    public static bool PideRespuesta(string? tipo) => tipo?.Trim() != SiNo;
+
+    public const string MensajeSoloSiNo =
+        "Las preguntas son de Sí/No: el tipo «Texto» ya no se usa en preguntas nuevas o editadas";
+
     /// <summary>Etiqueta de un valor guardado; devuelve el valor crudo para registros antiguos.</summary>
     public static string Etiqueta(string? tipo) =>
         Todos.FirstOrDefault(t => t.Valor == tipo)?.Etiqueta ?? tipo ?? string.Empty;

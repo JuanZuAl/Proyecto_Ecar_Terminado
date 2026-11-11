@@ -7,36 +7,46 @@
    botones PDF/Excel descargan el mismo archivo, así que nunca pueden discrepar.
 
    Las fechas son obligatorias y el rango máximo es un año (se valida acá antes de llamar al API,
-   además de lo que valide el servidor). Solo Administrador y Auditor, igual que el API. *@
+   además de lo que valide el servidor). Solo Administrador y Supervisor, igual que el API. *@
 
-<RolRouteGuard Roles="@(new[] { "Administrador", "Auditor" })"
-               MensajeNoAutorizado="Solo administradores y auditores pueden consultar los reportes.">
+<RolRouteGuard Roles="@(new[] { RolesSistema.Administrador, RolesSistema.Supervisor })"
+               MensajeNoAutorizado="Solo administradores y supervisores pueden consultar los reportes.">
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudCard>
         <MudCardHeader>
             <CardHeaderContent>
                 <MudText Typo="Typo.h5">Reportes</MudText>
-                <MudText Typo="Typo.body2">Historial de inspecciones, novedades y cumplimiento (SRS §7)</MudText>
+                <MudText Typo="Typo.body2">Historial de inspecciones y novedades (SRS §7)</MudText>
             </CardHeaderContent>
         </MudCardHeader>
 
         <MudCardContent>
-            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pt-3">
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pt-3" Class="tabs-reportes">
 
                 @* ---------- Historial por Equipo ---------- *@
                 <MudTabPanel Text="Historial por Equipo">
                     <MudGrid Class="mb-2" Spacing="2">
                         <MudItem xs="12" sm="6" lg="4">
-                            <MudAutocomplete T="EquipoDto" Label="Equipo" @bind-Value="equipoSeleccionado"
-                                SearchFunc="BuscarEquiposAsync" ToStringFunc="@(e => e == null ? string.Empty : $"{e.CodigoInterno} - {e.NombreEquipo}")"
-                                Variant="Variant.Outlined" Clearable="true" ResetValueOnEmptyText="true"
-                                HelperText="Opcional: deje vacío para todos los equipos" />
+                            <BuscadorMultiple TItem="EquipoDto" Label="Equipos" SearchFunc="BuscarEquiposAsync"
+                                ToStringFunc="@(e => e == null ? string.Empty : $"{e.CodigoInterno} - {e.NombreEquipo}")"
+                                Clave="@(e => e.IdEquipo)" Seleccionados="equiposSeleccionados"
+                                HelperText="Opcional: elija uno o varios; vacío, todos los equipos" />
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoEquipo.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoEquipo.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoEquipo.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoEquipo.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoEquipo.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoEquipo.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         @BotonesConsulta(() => ConsultarAsync(estadoEquipo, ReporteTipos.HistorialEquipo),
                             f => DescargarAsync(estadoEquipo, ReporteTipos.HistorialEquipo, f), estadoEquipo)
@@ -48,9 +58,10 @@
                     }
                     else if (estadoEquipo.Filas.Any())
                     {
-                        <MudTable Items="estadoEquipo.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoEquipo.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
                                 <MudTh>Inspección</MudTh>
+                                <MudTh>Sede</MudTh>
                                 <MudTh>Equipo</MudTh>
                                 <MudTh>Código / Activo fijo</MudTh>
                                 <MudTh>Marca / Modelo</MudTh>
@@ -62,13 +73,14 @@
                             </HeaderContent>
                             <RowTemplate>
                                 <MudTd DataLabel="Inspección">#@context.IdInspeccion</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
                                 <MudTd DataLabel="Equipo">@context.NombreEquipo</MudTd>
                                 <MudTd DataLabel="Código / Activo fijo">@context.CodigoInterno / @context.ActivoFijo</MudTd>
                                 <MudTd DataLabel="Marca / Modelo">@context.Marca @context.Modelo</MudTd>
                                 <MudTd DataLabel="Área">@(context.Area ?? "—")</MudTd>
                                 <MudTd DataLabel="Fecha">@context.FechaInspeccion.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                                 <MudTd DataLabel="Resultado">
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@ResultadoColor(context.Resultado)"
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorResultado(context.Resultado)"
                                         Text="@InspeccionResultados.Texto(context.Resultado)" />
                                 </MudTd>
                                 <MudTd DataLabel="Observaciones">@(context.Observaciones ?? "—")</MudTd>
@@ -87,7 +99,9 @@
                 <MudTabPanel Text="Historial por Área">
                     <MudGrid Class="mb-2" Spacing="2">
                         <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Planta" @bind-Value="estadoArea.Filtro.Planta" Variant="Variant.Outlined" Clearable="true">
+                            <MudSelect T="string" Label="Plantas" MultiSelection="true" SelectedValues="@estadoArea.Filtro.Plantas"
+                                SelectedValuesChanged="@(v => estadoArea.Filtro.Plantas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
                                 @foreach (var planta in Plantas)
                                 {
                                     <MudSelectItem T="string" Value="@planta">@planta</MudSelectItem>
@@ -95,18 +109,30 @@
                             </MudSelect>
                         </MudItem>
                         <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Área" @bind-Value="estadoArea.Filtro.Area" Variant="Variant.Outlined" Clearable="true">
-                                @foreach (var area in Areas)
+                            <MudSelect T="string" Label="Áreas" MultiSelection="true" SelectedValues="@estadoArea.Filtro.Areas"
+                                SelectedValuesChanged="@(v => estadoArea.Filtro.Areas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var area in AreasDe(estadoArea.Filtro.Plantas))
                                 {
                                     <MudSelectItem T="string" Value="@area">@area</MudSelectItem>
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoArea.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoArea.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoArea.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoArea.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoArea.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoArea.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         @BotonesConsulta(() => ConsultarAsync(estadoArea, ReporteTipos.HistorialArea),
                             f => DescargarAsync(estadoArea, ReporteTipos.HistorialArea, f), estadoArea)
@@ -118,9 +144,10 @@
                     }
                     else if (estadoArea.Filas.Any())
                     {
-                        <MudTable Items="estadoArea.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoArea.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
                                 <MudTh>Inspección</MudTh>
+                                <MudTh>Sede</MudTh>
                                 <MudTh>Planta</MudTh>
                                 <MudTh>Área</MudTh>
                                 <MudTh>Equipo</MudTh>
@@ -130,12 +157,13 @@
                             </HeaderContent>
                             <RowTemplate>
                                 <MudTd DataLabel="Inspección">#@context.IdInspeccion</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
                                 <MudTd DataLabel="Planta">@context.Planta</MudTd>
                                 <MudTd DataLabel="Área">@context.Area</MudTd>
                                 <MudTd DataLabel="Equipo">@context.Equipo</MudTd>
                                 <MudTd DataLabel="Fecha">@context.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                                 <MudTd DataLabel="Resultado">
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@ResultadoColor(context.Resultado)"
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorResultado(context.Resultado)"
                                         Text="@InspeccionResultados.Texto(context.Resultado)" />
                                 </MudTd>
                                 <MudTd DataLabel="Responsable">@context.Responsable</MudTd>
@@ -149,35 +177,46 @@
                     }
                 </MudTabPanel>
 
-                @* ---------- Historial por Técnico ---------- *@
-                <MudTabPanel Text="Historial por Técnico">
+                @* ---------- Historial por Usuario ---------- *@
+                <MudTabPanel Text="Historial por Usuario">
                     <MudGrid Class="mb-2" Spacing="2">
                         <MudItem xs="12" sm="6" lg="4">
-                            <MudAutocomplete T="UsuarioDto" Label="Técnico" @bind-Value="tecnicoSeleccionado"
-                                SearchFunc="BuscarTecnicosAsync" ToStringFunc="@(u => u == null ? string.Empty : $"{u.Nombre} ({u.Correo})")"
-                                Variant="Variant.Outlined" Clearable="true" ResetValueOnEmptyText="true"
-                                HelperText="Opcional: deje vacío para todos los técnicos" />
+                            <BuscadorMultiple TItem="UsuarioBusquedaDto" Label="Usuarios" SearchFunc="BuscarUsuariosAsync"
+                                ToStringFunc="@(u => u == null ? string.Empty : $"{u.Nombre} ({u.Correo})")"
+                                Clave="@(u => u.IdUsuario)" Seleccionados="usuariosSeleccionados"
+                                HelperText="Opcional: elija uno o varios; vacío, todos los usuarios" />
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoTecnico.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoUsuario.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoUsuario.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoTecnico.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoUsuario.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
-                        @BotonesConsulta(() => ConsultarAsync(estadoTecnico, ReporteTipos.HistorialTecnico),
-                            f => DescargarAsync(estadoTecnico, ReporteTipos.HistorialTecnico, f), estadoTecnico)
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoUsuario.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        @BotonesConsulta(() => ConsultarAsync(estadoUsuario, ReporteTipos.HistorialUsuario),
+                            f => DescargarAsync(estadoUsuario, ReporteTipos.HistorialUsuario, f), estadoUsuario)
                     </MudGrid>
 
-                    @if (estadoTecnico.Cargando)
+                    @if (estadoUsuario.Cargando)
                     {
                         <MudProgressLinear Indeterminate="true" Class="my-4" />
                     }
-                    else if (estadoTecnico.Filas.Any())
+                    else if (estadoUsuario.Filas.Any())
                     {
-                        <MudTable Items="estadoTecnico.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoUsuario.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
                                 <MudTh>Inspección</MudTh>
-                                <MudTh>Técnico</MudTh>
+                                <MudTh>Sede</MudTh>
+                                <MudTh>Usuario</MudTh>
                                 <MudTh>Equipo</MudTh>
                                 <MudTh>Fecha</MudTh>
                                 <MudTh>Resultado</MudTh>
@@ -185,19 +224,20 @@
                             </HeaderContent>
                             <RowTemplate>
                                 <MudTd DataLabel="Inspección">#@context.IdInspeccion</MudTd>
-                                <MudTd DataLabel="Técnico">@context.Tecnico</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
+                                <MudTd DataLabel="Usuario">@context.Usuario</MudTd>
                                 <MudTd DataLabel="Equipo">@context.Equipo</MudTd>
                                 <MudTd DataLabel="Fecha">@context.FechaInspeccion.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                                 <MudTd DataLabel="Resultado">
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@ResultadoColor(context.Resultado)"
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorResultado(context.Resultado)"
                                         Text="@InspeccionResultados.Texto(context.Resultado)" />
                                 </MudTd>
                                 <MudTd DataLabel="Observaciones">@(context.Observaciones ?? "—")</MudTd>
                             </RowTemplate>
                         </MudTable>
-                        @Paginacion(estadoTecnico, p => CambiarPaginaAsync(estadoTecnico, ReporteTipos.HistorialTecnico, p))
+                        @Paginacion(estadoUsuario, p => CambiarPaginaAsync(estadoUsuario, ReporteTipos.HistorialUsuario, p))
                     }
-                    else if (estadoTecnico.Consultado)
+                    else if (estadoUsuario.Consultado)
                     {
                         <MudAlert Severity="Severity.Info" Class="my-4">No hay inspecciones con estos filtros</MudAlert>
                     }
@@ -207,25 +247,40 @@
                 <MudTabPanel Text="Equipos con Novedades">
                     <MudGrid Class="mb-2" Spacing="2">
                         <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Estado" @bind-Value="estadoNovedades.Filtro.Estado" Variant="Variant.Outlined" Clearable="true">
-                                @foreach (var estadoHallazgo in HallazgoEstados.Todos)
+                            <MudSelect T="string" Label="Estados" MultiSelection="true" SelectedValues="@estadoNovedades.Filtro.Estados"
+                                SelectedValuesChanged="@(v => estadoNovedades.Filtro.Estados = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Uno o varios; vacío, todos">
+                                @foreach (var estadoNovedad in NovedadEstados.Todos)
                                 {
-                                    <MudSelectItem T="string" Value="@estadoHallazgo">@estadoHallazgo</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@estadoNovedad">@estadoNovedad</MudSelectItem>
                                 }
                             </MudSelect>
                         </MudItem>
                         <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Criticidad" @bind-Value="estadoNovedades.Filtro.Criticidad" Variant="Variant.Outlined" Clearable="true">
-                                <MudSelectItem T="string" Value="@("Alta")">Alta</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("Media")">Media</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("Baja")">Baja</MudSelectItem>
+                            <MudSelect T="string" Label="Criticidades" MultiSelection="true" SelectedValues="@estadoNovedades.Filtro.Criticidades"
+                                SelectedValuesChanged="@(v => estadoNovedades.Filtro.Criticidades = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var criticidad in Criticidades.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@criticidad">@criticidad</MudSelectItem>
+                                }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoNovedades.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoNovedades.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoNovedades.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoNovedades.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoNovedades.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoNovedades.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         @BotonesConsulta(() => ConsultarAsync(estadoNovedades, ReporteTipos.EquiposNovedades),
                             f => DescargarAsync(estadoNovedades, ReporteTipos.EquiposNovedades, f), estadoNovedades)
@@ -237,9 +292,10 @@
                     }
                     else if (estadoNovedades.Filas.Any())
                     {
-                        <MudTable Items="estadoNovedades.Filas" Hover="true" Striped="true" Elevation="0" Dense="true">
+                        <MudTable Items="estadoNovedades.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
                             <HeaderContent>
-                                <MudTh>Hallazgo</MudTh>
+                                <MudTh>Novedad</MudTh>
+                                <MudTh>Sede</MudTh>
                                 <MudTh>Equipo</MudTh>
                                 <MudTh>Área</MudTh>
                                 <MudTh>Descripción</MudTh>
@@ -249,18 +305,19 @@
                                 <MudTh>Estado</MudTh>
                             </HeaderContent>
                             <RowTemplate>
-                                <MudTd DataLabel="Hallazgo">#@context.IdHallazgo</MudTd>
+                                <MudTd DataLabel="Novedad">#@context.IdNovedad</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
                                 <MudTd DataLabel="Equipo">@context.Equipo</MudTd>
                                 <MudTd DataLabel="Área">@(context.Area ?? "—")</MudTd>
-                                <MudTd DataLabel="Descripción">@context.Hallazgo</MudTd>
+                                <MudTd DataLabel="Descripción">@context.Novedad</MudTd>
                                 <MudTd DataLabel="Criticidad">
                                     <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@CriticidadColor(context.Criticidad)"
                                         Text="@(context.Criticidad ?? "—")" />
                                 </MudTd>
                                 <MudTd DataLabel="Fecha">@context.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
-                                <MudTd DataLabel="Responsable">@(context.Responsable ?? "Sin asignar")</MudTd>
+                                <MudTd DataLabel="Responsable">@(context.Responsable ?? "Sin resolver")</MudTd>
                                 <MudTd DataLabel="Estado">
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@EstadoHallazgoColor(context.Estado)" Text="@context.Estado" />
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorNovedad(context.Estado)" Text="@context.Estado" />
                                 </MudTd>
                             </RowTemplate>
                         </MudTable>
@@ -272,81 +329,13 @@
                     }
                 </MudTabPanel>
 
-                @* ---------- Cumplimiento ---------- *@
-                <MudTabPanel Text="Cumplimiento">
-                    <MudGrid Class="mb-2" Spacing="2">
-                        <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Planta" @bind-Value="estadoCumplimiento.Filtro.Planta" Variant="Variant.Outlined" Clearable="true">
-                                @foreach (var planta in Plantas)
-                                {
-                                    <MudSelectItem T="string" Value="@planta">@planta</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Área" @bind-Value="estadoCumplimiento.Filtro.Area" Variant="Variant.Outlined" Clearable="true">
-                                @foreach (var area in Areas)
-                                {
-                                    <MudSelectItem T="string" Value="@area">@area</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="estadoCumplimiento.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
-                        </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="estadoCumplimiento.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
-                        </MudItem>
-                        @BotonesConsulta(() => ConsultarAsync(estadoCumplimiento, ReporteTipos.Cumplimiento),
-                            f => DescargarAsync(estadoCumplimiento, ReporteTipos.Cumplimiento, f), estadoCumplimiento)
-                    </MudGrid>
-
-                    @if (estadoCumplimiento.Cargando)
-                    {
-                        <MudProgressLinear Indeterminate="true" Class="my-4" />
-                    }
-                    else if (estadoCumplimiento.Filas.Any())
-                    {
-                        @if (estadoCumplimiento.Filas.All(f => f.PorcentajeCumplimiento == null))
-                        {
-                            <MudAlert Severity="Severity.Warning" Class="mb-3">
-                                Ningún equipo de este filtro tiene frecuencia de inspección configurada: el cumplimiento no se puede calcular.
-                                Esto se define por equipo en la ficha técnica.
-                            </MudAlert>
-                        }
-                        <MudGrid>
-                            @foreach (var fila in estadoCumplimiento.Filas)
-                            {
-                                <MudItem xs="12" sm="6">
-                                    <MudPaper Class="pa-3" Outlined="true">
-                                        <div class="d-flex justify-space-between align-center mb-1">
-                                            <MudText Typo="Typo.body2"><b>@fila.Planta</b> · @fila.Area · @fila.Periodo</MudText>
-                                            <MudText Typo="Typo.body2">
-                                                @(fila.PorcentajeCumplimiento.HasValue ? $"{fila.PorcentajeCumplimiento:0}%" : "Sin programar")
-                                            </MudText>
-                                        </div>
-                                        <MudProgressLinear Color="@CumplimientoColor(fila.PorcentajeCumplimiento)"
-                                            Value="@((double)(fila.PorcentajeCumplimiento ?? 0))" Class="my-1" Rounded="true" Size="Size.Large" />
-                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                            @fila.EquiposInspeccionados de @fila.EquiposProgramados equipo(s) programado(s)
-                                        </MudText>
-                                    </MudPaper>
-                                </MudItem>
-                            }
-                        </MudGrid>
-                        @Paginacion(estadoCumplimiento, p => CambiarPaginaAsync(estadoCumplimiento, ReporteTipos.Cumplimiento, p))
-                    }
-                    else if (estadoCumplimiento.Consultado)
-                    {
-                        <MudAlert Severity="Severity.Info" Class="my-4">No hay datos de cumplimiento con estos filtros</MudAlert>
-                    }
-                </MudTabPanel>
-
                 @* ---------- Inspecciones por Fechas ---------- *@
                 <MudTabPanel Text="Inspecciones por Fechas">
                     <MudGrid Class="mb-2" Spacing="2">
                         <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Planta" @bind-Value="filtroFechas.Planta" Variant="Variant.Outlined" Clearable="true">
+                            <MudSelect T="string" Label="Plantas" MultiSelection="true" SelectedValues="@filtroFechas.Plantas"
+                                SelectedValuesChanged="@(v => filtroFechas.Plantas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
                                 @foreach (var planta in Plantas)
                                 {
                                     <MudSelectItem T="string" Value="@planta">@planta</MudSelectItem>
@@ -354,27 +343,39 @@
                             </MudSelect>
                         </MudItem>
                         <MudItem xs="12" sm="6" lg="3">
-                            <MudSelect T="string" Label="Área" @bind-Value="filtroFechas.Area" Variant="Variant.Outlined" Clearable="true">
-                                @foreach (var area in Areas)
+                            <MudSelect T="string" Label="Áreas" MultiSelection="true" SelectedValues="@filtroFechas.Areas"
+                                SelectedValuesChanged="@(v => filtroFechas.Areas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var area in AreasDe(filtroFechas.Plantas))
                                 {
                                     <MudSelectItem T="string" Value="@area">@area</MudSelectItem>
                                 }
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Desde" @bind-Date="filtroFechas.Desde" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@filtroFechas.Sedes"
+                                SelectedValuesChanged="@(v => filtroFechas.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
                         </MudItem>
-                        <MudItem xs="6" sm="3" lg="2">
-                            <MudDatePicker Label="Hasta" @bind-Date="filtroFechas.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="filtroFechas.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="filtroFechas.Hasta" Variant="Variant.Outlined" Editable="true" />
                         </MudItem>
                         <MudItem xs="12" Class="d-flex flex-wrap gap-2 justify-end">
                             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
                                 Disabled="cargandoFechas" OnClick="ConsultarFechasAsync">Consultar</MudButton>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                            <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.PictureAsPdf"
                                 Disabled="descargandoFechas" OnClick="@(() => DescargarFechasAsync(ReporteFormatos.Pdf))">
                                 @(descargandoFechas ? "Generando…" : "PDF")
                             </MudButton>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.GridOn"
+                            <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.GridOn"
                                 Disabled="descargandoFechas" OnClick="@(() => DescargarFechasAsync(ReporteFormatos.Excel))">
                                 @(descargandoFechas ? "Generando…" : "Excel")
                             </MudButton>
@@ -439,6 +440,15 @@
 </MudContainer>
 </RolRouteGuard>
 
+<style>
+    /* Cinco pestañas largas: con el relleno por defecto casi llenan el ancho y, al aparecer la barra de
+       desplazamiento vertical (con los resultados), salen las flechas de desplazamiento de la barra (M-03). */
+    .mud-tabs.tabs-reportes .mud-tab {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+</style>
+
 @code {
     private const int TamanoPagina = 10;
     private const int MaxResultadosBusqueda = 20;
@@ -465,9 +475,8 @@
 
     private readonly EstadoReporte<HistorialEquipoFilaDto> estadoEquipo = new();
     private readonly EstadoReporte<HistorialAreaFilaDto> estadoArea = new();
-    private readonly EstadoReporte<HistorialTecnicoFilaDto> estadoTecnico = new();
+    private readonly EstadoReporte<HistorialUsuarioFilaDto> estadoUsuario = new();
     private readonly EstadoReporte<EquipoNovedadFilaDto> estadoNovedades = new();
-    private readonly EstadoReporte<CumplimientoFilaDto> estadoCumplimiento = new();
 
     // Inspecciones por Fechas no pagina: el servidor devuelve un único objeto con los totales
     // y el desglose por área completo.
@@ -476,14 +485,22 @@
     private bool cargandoFechas;
     private bool descargandoFechas;
 
-    private EquipoDto? equipoSeleccionado;
-    private UsuarioDto? tecnicoSeleccionado;
+    // Varios a la vez (29/10/2026); vacíos, no filtran.
+    private readonly List<EquipoDto> equiposSeleccionados = new();
+    private readonly List<UsuarioBusquedaDto> usuariosSeleccionados = new();
     private bool errorEquiposAvisado;
-    private bool errorTecnicosAvisado;
+    private bool errorUsuariosAvisado;
 
     private List<UbicacionDto> ubicacionesFiltro = new();
     private IEnumerable<string> Plantas => ubicacionesFiltro.Select(u => u.Planta).Distinct().OrderBy(p => p);
-    private IEnumerable<string> Areas => ubicacionesFiltro.Select(u => u.Area).Distinct().OrderBy(a => a);
+
+    /// <summary>Las áreas de las plantas elegidas; sin plantas elegidas, todas.</summary>
+    private IEnumerable<string> AreasDe(IReadOnlyCollection<string> plantas) => ubicacionesFiltro
+        .Where(u => plantas.Count == 0 || plantas.Contains(u.Planta))
+        .Select(u => u.Area).Distinct().OrderBy(a => a);
+
+    private static List<string> Lista(IEnumerable<string?>? valores) =>
+        (valores ?? []).Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -491,10 +508,12 @@
         ubicacionesFiltro = respuesta?.Success == true ? respuesta.Data?.Data ?? new() : new();
     }
 
-    protected override void OnParametersSet()
+    // Los equipos y usuarios elegidos pasan al filtro justo antes de cada consulta o descarga. Antes se
+    // copiaban en OnParametersSet, que no corre al elegir en el buscador: el filtro salía sin ellos.
+    private void AplicarSelecciones()
     {
-        estadoEquipo.Filtro.IdEquipo = equipoSeleccionado?.IdEquipo;
-        estadoTecnico.Filtro.IdUsuario = tecnicoSeleccionado?.IdUsuario;
+        estadoEquipo.Filtro.IdEquipos = equiposSeleccionados.Select(e => e.IdEquipo).ToList();
+        estadoUsuario.Filtro.IdUsuarios = usuariosSeleccionados.Select(u => u.IdUsuario).ToList();
     }
 
     private async Task<IEnumerable<EquipoDto>> BuscarEquiposAsync(string valor, CancellationToken token)
@@ -514,21 +533,23 @@
         return respuesta.Data?.Data ?? new List<EquipoDto>();
     }
 
-    private async Task<IEnumerable<UsuarioDto>> BuscarTecnicosAsync(string valor, CancellationToken token)
+    // F-24: GET api/reportes/usuarios (B-04) es de Administrador y Supervisor; api/usuarios era solo
+    // del Administrador y al Supervisor le fallaba. Devuelve hasta 20, con id, nombre y correo.
+    private async Task<IEnumerable<UsuarioBusquedaDto>> BuscarUsuariosAsync(string valor, CancellationToken token)
     {
-        var respuesta = await HttpClientService.GetUsuariosAsync(1, MaxResultadosBusqueda, valor);
-        if (respuesta == null || !respuesta.Success)
+        var respuesta = await HttpClientService.BuscarUsuariosReportesAsync(valor);
+        if (!respuesta.Success)
         {
-            if (!errorTecnicosAvisado)
+            if (!errorUsuariosAvisado)
             {
-                errorTecnicosAvisado = true;
-                Snackbar.Add(respuesta?.Message ?? "No se pudieron cargar los técnicos", Severity.Error);
+                errorUsuariosAvisado = true;
+                Snackbar.Add(respuesta.Message, Severity.Error);
             }
-            return Array.Empty<UsuarioDto>();
+            return Array.Empty<UsuarioBusquedaDto>();
         }
 
-        errorTecnicosAvisado = false;
-        return respuesta.Data?.Data ?? new List<UsuarioDto>();
+        errorUsuariosAvisado = false;
+        return respuesta.Data ?? new List<UsuarioBusquedaDto>();
     }
 
     /// <summary>Fechas obligatorias, rango correcto y máximo un año (SRS §7 / PLAN_FASE4_TAREAS §6 FE-2).</summary>
@@ -568,6 +589,7 @@
 
     private async Task CargarPaginaAsync<T>(EstadoReporte<T> estado, string tipo)
     {
+        AplicarSelecciones();
         estado.Cargando = true;
 
         var respuesta = await HttpClientService.GetReporteAsync<PagedResultDto<T>>(tipo, estado.Filtro, estado.Pagina, TamanoPagina);
@@ -602,6 +624,7 @@
             return;
         }
 
+        AplicarSelecciones();
         estado.Descargando = true;
         Snackbar.Add("Generando el archivo…", Severity.Info);
 
@@ -660,27 +683,20 @@
     private RenderFragment BotonesConsulta<T>(Func<Task> consultar, Func<string, Task> descargar, EstadoReporte<T> estado) => @<MudItem xs="12" Class="d-flex flex-wrap gap-2 justify-end">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
             Disabled="estado.Cargando" OnClick="consultar">Consultar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+        <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.PictureAsPdf"
             Disabled="estado.Descargando" OnClick="@(() => descargar(ReporteFormatos.Pdf))">
             @(estado.Descargando ? "Generando…" : "PDF")
         </MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.GridOn"
+        <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.GridOn"
             Disabled="estado.Descargando" OnClick="@(() => descargar(ReporteFormatos.Excel))">
             @(estado.Descargando ? "Generando…" : "Excel")
         </MudButton>
     </MudItem>;
 
     private RenderFragment Paginacion<T>(EstadoReporte<T> estado, Func<int, Task> cambiarPagina) => @<div class="d-flex flex-wrap align-center justify-space-between mt-4 gap-2">
-        <MudText Typo="Typo.caption" Class="mud-text-secondary">@estado.TotalRegistros registro(s)</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@Texto.Cantidad(estado.TotalRegistros, "registro", "registros")</MudText>
         <MudPagination Count="@estado.TotalPaginas" Selected="@estado.Pagina" SelectedChanged="cambiarPagina" />
     </div>;
-
-    private static Color ResultadoColor(string? resultado) => (resultado ?? string.Empty).ToLowerInvariant() switch
-    {
-        "conforme" or "satisfactoria" => Color.Success,
-        "connovedad" or "con novedad" => Color.Warning,
-        _ => Color.Default
-    };
 
     private static Color CriticidadColor(string? criticidad) => (criticidad ?? string.Empty).ToLowerInvariant() switch
     {
@@ -688,22 +704,5 @@
         "media" => Color.Warning,
         "baja" => Color.Info,
         _ => Color.Default
-    };
-
-    private static Color EstadoHallazgoColor(string? estado) => estado switch
-    {
-        HallazgoEstados.Abierto => Color.Error,
-        HallazgoEstados.EnProceso => Color.Warning,
-        HallazgoEstados.Cerrado => Color.Success,
-        HallazgoEstados.Anulado => Color.Default,
-        _ => Color.Default
-    };
-
-    private static Color CumplimientoColor(decimal? porcentaje) => porcentaje switch
-    {
-        null => Color.Default,
-        >= 90 => Color.Success,
-        >= 70 => Color.Warning,
-        _ => Color.Error
     };
 }

@@ -1,4 +1,4 @@
-<MudDialog Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+<MudDialog Options="Opciones">
     <TitleContent>
         <MudText Typo="Typo.h6">Inspección #@Inspeccion?.IdInspeccion</MudText>
     </TitleContent>
@@ -21,13 +21,12 @@
                 <MudItem xs="12" sm="6">
                     <MudText Typo="Typo.caption">Resultado</MudText>
                     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                        Color="@ResultadoColor(Inspeccion.Resultado)" Text="@InspeccionResultados.Texto(Inspeccion.Resultado)" />
+                        Color="@FormatoEstados.ColorResultado(Inspeccion.Resultado)" Text="@InspeccionResultados.Texto(Inspeccion.Resultado)" />
                 </MudItem>
                 <MudItem xs="6" sm="4">
                     <MudText Typo="Typo.caption">Estado</MudText>
                     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                        Color="@(Inspeccion.Estado switch { InspeccionEstados.Cerrada => Color.Success, InspeccionEstados.Anulada => Color.Default, _ => Color.Warning })"
-                        Text="@(Inspeccion.Estado == InspeccionEstados.EnCurso ? "En curso" : Inspeccion.Estado)" />
+                        Color="@FormatoEstados.ColorInspeccion(Inspeccion.Estado)" Text="@InspeccionEstados.Texto(Inspeccion.Estado)" />
                 </MudItem>
                 @if (Inspeccion.Estado == InspeccionEstados.Anulada)
                 {
@@ -42,8 +41,14 @@
                     <MudText Typo="Typo.body1">@Inspeccion.TotalEvidencias</MudText>
                 </MudItem>
                 <MudItem xs="6" sm="4">
-                    <MudText Typo="Typo.caption">Hallazgos</MudText>
-                    <MudText Typo="Typo.body1">@Inspeccion.TotalHallazgos</MudText>
+                    <MudText Typo="Typo.caption">Novedades totales</MudText>
+                    <MudText Typo="Typo.body1">@Inspeccion.TotalNovedades</MudText>
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudText Typo="Typo.caption">Novedades pendientes</MudText>
+                    <MudText Typo="Typo.body1" Color="@(Inspeccion.NovedadesPendientes > 0 ? Color.Error : Color.Default)">
+                        @Inspeccion.NovedadesPendientes
+                    </MudText>
                 </MudItem>
             </MudGrid>
 
@@ -73,6 +78,12 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
+    // MudBlazor 9 solo aplica las Options de <MudDialog> a los diálogos en línea: abierto con
+    // DialogService salía con el ancho pequeño (600 px). Se aplican al abrirse.
+    private static readonly DialogOptions Opciones = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+    protected override Task OnInitializedAsync() => MudDialog.SetOptionsAsync(Opciones);
+
     [Parameter]
     public InspeccionDto? Inspeccion { get; set; }
 
@@ -80,14 +91,6 @@
     {
         MudDialog.Close(DialogResult.Ok(true));
     }
-
-    private static Color ResultadoColor(string? resultado) => (resultado ?? string.Empty).ToLowerInvariant() switch
-    {
-        // Conforme / ConNovedad los calcula el servidor al firmar; los otros dos son de la Fase 1-2.
-        "conforme" or "satisfactoria" => Color.Success,
-        "connovedad" or "con novedad" => Color.Warning,
-        _ => Color.Default
-    };
 }
 
 <style>
@@ -98,18 +101,18 @@
 }
 
 .dialog-button.mud-button-filled {
-    background-color: #397FDE !important;
+    background-color: var(--primary) !important;
     color: white !important;
 }
 
 .dialog-button.mud-button-filled:hover {
-    background-color: #2A5FB8 !important;
+    background-color: var(--primary-dark) !important;
 }
 
 .value-box {
-    border: 1px solid #E0E6ED !important;
+    border: 1px solid var(--border) !important;
     border-radius: 8px !important;
-    background-color: #F4F5F7 !important;
+    background-color: var(--background) !important;
     min-height: 60px;
     max-height: 300px;
     overflow-y: auto;

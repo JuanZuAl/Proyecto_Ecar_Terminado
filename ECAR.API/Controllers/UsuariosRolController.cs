@@ -1,5 +1,6 @@
 using ECAR.Infrastructure.Data;
 using ECAR.Infrastructure.Entities;
+using ECAR.Shared;
 using ECAR.Shared.DTOs;
 using ECAR.Shared.Responses;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +11,7 @@ namespace ECAR.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Administrador")]
+[Authorize(Roles = RolesSistema.Administrador)]
 public class UsuariosRolController : ControllerBase
 {
     private readonly ECARDbContext _context;
@@ -143,6 +144,11 @@ public class UsuariosRolController : ControllerBase
                 "No se puede retirar la asignación del último administrador activo"));
         }
 
+        if (asignacion.IdUsuario != updateDto.IdUsuario && await EsSuUnicoRolAsync(asignacion))
+        {
+            return BadRequest(ApiResponse<UsuarioRolDto>.ErrorResponse(MensajeUnicoRol));
+        }
+
         if (!await _context.Usuarios.AnyAsync(u => u.IdUsuario == updateDto.IdUsuario))
         {
             return BadRequest(ApiResponse<UsuarioRolDto>.ErrorResponse("El usuario seleccionado no existe"));
@@ -194,11 +200,26 @@ public class UsuariosRolController : ControllerBase
                 "No se puede retirar la asignación del último administrador activo"));
         }
 
+        if (await EsSuUnicoRolAsync(asignacion))
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse(MensajeUnicoRol));
+        }
+
         _context.UsuarioRoles.Remove(asignacion);
         await _context.SaveChangesAsync();
 
         return Ok(ApiResponse<bool>.SuccessResponse(true, "Asignación eliminada exitosamente"));
     }
+
+    public const string MensajeUnicoRol =
+        "Es el único rol del usuario: asígnele otro antes de quitar este (sin rol no podría usar el sistema)";
+
+    /// <summary>
+    /// true si la asignación es el único rol de su usuario: quitarla o pasarla a otro usuario lo dejaría sin rol, y un
+    /// usuario sin rol entra pero recibe 403 en todo (prueba integral del 08/11/2026).
+    /// </summary>
+    private Task<bool> EsSuUnicoRolAsync(UsuarioRol asignacion) =>
+        _context.UsuarioRoles.AllAsync(ur => ur.IdUsuario != asignacion.IdUsuario || ur.Id == asignacion.Id);
 
     [HttpGet("usuarios")]
     public async Task<ActionResult<ApiResponse<List<LookupDto>>>> GetUsuariosLookup()

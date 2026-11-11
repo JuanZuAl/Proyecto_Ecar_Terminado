@@ -11,7 +11,7 @@
     <MudFileUpload T="IBrowserFile" @ref="fileUpload" Accept="image/*" capture="environment"
         Disabled="Subiendo" FilesChanged="OnArchivoSeleccionadoAsync">
         <CustomContent Context="fileUploadContext">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="Subiendo"
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="Subiendo" Class="subir-foto"
                 StartIcon="@Icons.Material.Filled.AddAPhoto" OnClick="@fileUploadContext.OpenFilePickerAsync">
                 Agregar fotografía
             </MudButton>
@@ -23,13 +23,13 @@
     {
         <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-2" />
         <MudText Typo="Typo.caption" Class="mud-text-secondary">
-            Subiendo @_subidasEnCurso fotografía(s)…
+            Subiendo @Texto.Cantidad(_subidasEnCurso, "fotografía", "fotografías")…
         </MudText>
     }
 }
 
 <MudText Typo="Typo.body2" Class="mud-text-secondary mt-3 mb-2">
-    @EvidenciasVisibles.Count fotografía(s) adjunta(s)
+    @Texto.Cantidad(EvidenciasVisibles.Count, "fotografía adjunta", "fotografías adjuntas")
 </MudText>
 
 @if (EvidenciasVisibles.Any())
@@ -41,7 +41,14 @@
                 <MudCard Outlined="true">
                     @if (miniaturas.TryGetValue(evidencia.IdEvidencia, out var src) && src != null)
                     {
-                        <MudImage Src="@src" ObjectFit="ObjectFit.Cover" Height="140" Class="mud-width-full" />
+                        <button type="button" class="miniatura-ampliable" title="Ver en grande"
+                                @onclick="@(() => VisorImagenDialog.AbrirAsync(DialogService, src, evidencia.NombreOriginal))">
+                            <MudImage Src="@src" ObjectFit="ObjectFit.Cover" Height="140" Class="mud-width-full" />
+                        </button>
+                    }
+                    else if (miniaturas.ContainsKey(evidencia.IdEvidencia))
+                    {
+                        <EvidenciaNoDisponible Alto="140px" />
                     }
                     else
                     {
@@ -156,7 +163,7 @@
 
     /// <summary>
     /// Fase 4: la foto no se borra, se retira con motivo (queda en la auditoría). Pide el motivo
-    /// con el mismo diálogo que usan hallazgos e inspecciones.
+    /// con el mismo diálogo que usan novedades e inspecciones.
     /// </summary>
     private async Task ConfirmarRetirarAsync(EvidenciaDto evidencia)
     {

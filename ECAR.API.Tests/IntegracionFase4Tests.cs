@@ -44,7 +44,7 @@ public class IntegracionFase4Tests
     private static async Task<(Usuario Tecnico, Inspeccion Inspeccion)> InspeccionFirmadaAsync(ECARDbContext db)
     {
         var tecnico = new Usuario { Nombre = "Ana", Correo = "ana@ecar.test", PasswordHash = FirmaPruebas.PasswordHash, Activo = true };
-        tecnico.UsuarioRoles.Add(new UsuarioRol { Rol = new Rol { Nombre = "Técnico" } });
+        tecnico.UsuarioRoles.Add(new UsuarioRol { Rol = new Rol { Nombre = "Operador" } });
         var equipo = new Equipo { CodigoInterno = "E-1", ActivoFijo = "AF-1", NombreEquipo = "Balanza" };
         var checklist = new Checklist { Nombre = "Diario", Version = "1" };
         db.AddRange(tecnico, equipo, checklist);
@@ -77,27 +77,12 @@ public class IntegracionFase4Tests
     }
 
     [Fact]
-    public async Task Restablecer_no_da_contrasena_local_a_una_cuenta_solo_de_Active_Directory()
-    {
-        await using var db = Base();
-        var usuarioAd = new Usuario { Nombre = "Luis", Correo = "luis@ecar.test", UsuarioAD = "ECAR\\luis", PasswordHash = string.Empty, Activo = true };
-        db.Usuarios.Add(usuarioAd);
-        await db.SaveChangesAsync();
-
-        var resultado = await Fabrica.Usuarios(db).RestablecerPassword(usuarioAd.IdUsuario,
-            new MotivoDto { Motivo = "Olvidó la contraseña del directorio" }, new MotivoCambio());
-
-        Assert.IsType<BadRequestObjectResult>(resultado.Result);
-        Assert.Equal(string.Empty, (await db.Usuarios.AsNoTracking().SingleAsync()).PasswordHash);
-    }
-
-    [Fact]
     public async Task Cerrar_sesion_queda_en_la_auditoria()
     {
         await using var db = Base();
 
         var resultado = await new AuthController(FirmaPruebas.CrearAuthService(db))
-            .Logout(db, new Usuario1(7, "Técnico"), porInactividad: true);
+            .Logout(db, new Usuario1(7, "Operador"), porInactividad: true);
 
         Assert.IsType<OkObjectResult>(resultado.Result);
         var evento = await db.Auditoria.SingleAsync();
@@ -110,7 +95,7 @@ public class IntegracionFase4Tests
     {
         var metodo = typeof(InspeccionesController).GetMethod(nameof(InspeccionesController.VerificarIntegridad))!;
 
-        Assert.Equal("Administrador,Auditor", metodo.GetCustomAttribute<AuthorizeAttribute>()?.Roles);
+        Assert.Equal("Administrador,Supervisor", metodo.GetCustomAttribute<AuthorizeAttribute>()?.Roles);
     }
 
     [Fact]
@@ -131,30 +116,6 @@ public class IntegracionFase4Tests
         Assert.Equal(sinFotos, await verificador.CalcularSelloAsync(inspeccion));
         inspeccion.Evidencias.Single().Retirada = false;
         Assert.NotEqual(sinFotos, await verificador.CalcularSelloAsync(inspeccion));
-    }
-
-    [Fact]
-    public async Task El_responsable_de_un_hallazgo_debe_ser_Tecnico_o_Administrador()
-    {
-        await using var db = Base();
-        var (tecnico, inspeccion) = await InspeccionFirmadaAsync(db);
-        var auditor = new Usuario { Nombre = "Diana", Correo = "diana@ecar.test", PasswordHash = "x", Activo = true };
-        auditor.UsuarioRoles.Add(new UsuarioRol { Rol = new Rol { Nombre = "Auditor" } });
-        db.Usuarios.Add(auditor);
-        await db.SaveChangesAsync();
-        var controlador = new HallazgosController(db, new Usuario1(tecnico.IdUsuario, "Técnico"), new MotivoCambio());
-
-        var aAuditor = await controlador.CreateHallazgo(new CreateHallazgoDto
-        {
-            IdInspeccion = inspeccion.IdInspeccion, Descripcion = "Etiqueta de calibración vencida", IdUsuarioResponsable = auditor.IdUsuario
-        });
-        var aTecnico = await controlador.CreateHallazgo(new CreateHallazgoDto
-        {
-            IdInspeccion = inspeccion.IdInspeccion, Descripcion = "Etiqueta de calibración vencida", IdUsuarioResponsable = tecnico.IdUsuario
-        });
-
-        Assert.IsType<BadRequestObjectResult>(aAuditor.Result);
-        Assert.IsType<CreatedAtActionResult>(aTecnico.Result);
     }
 
     private sealed class FakeFoto : IEvidenciaStorage

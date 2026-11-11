@@ -34,6 +34,7 @@
                     <MudSelect T="string" Label="Estado" Value="estadoFiltro" Variant="Variant.Outlined" Clearable="true"
                         ValueChanged="OnEstadoChanged">
                         <MudSelectItem T="string" Value="@InspeccionEstados.EnCurso">En curso</MudSelectItem>
+                        <MudSelectItem T="string" Value="@InspeccionEstados.NovedadesPendientes">Novedades pendientes</MudSelectItem>
                         <MudSelectItem T="string" Value="@InspeccionEstados.Cerrada">Cerrada</MudSelectItem>
                         <MudSelectItem T="string" Value="@InspeccionEstados.Anulada">Anulada</MudSelectItem>
                     </MudSelect>
@@ -46,7 +47,7 @@
             }
             else if (inspecciones != null && inspecciones.Any())
             {
-                <MudTable Items="inspecciones" Hover="true" Striped="true" Elevation="0">
+                <MudTable Items="inspecciones" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md" Class="tabla-compacta">
                     <HeaderContent>
                         <MudTh>ID</MudTh>
                         <MudTh>Equipo</MudTh>
@@ -55,8 +56,9 @@
                         <MudTh>Estado</MudTh>
                         <MudTh>Resultado</MudTh>
                         <MudTh>Firma</MudTh>
-                        <MudTh>Evid. / Hall.</MudTh>
-                        <MudTh>Acciones</MudTh>
+                        <MudTh>Evidencias</MudTh>
+                        <MudTh>Novedades</MudTh>
+                        <MudTh Class="col-acciones">Acciones</MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd DataLabel="ID">@context.IdInspeccion</MudTd>
@@ -65,48 +67,61 @@
                         <MudTd DataLabel="Fecha">@context.FechaInspeccion.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                         <MudTd DataLabel="Estado">
                             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                                Color="@EstadoColor(context.Estado)" Text="@EstadoTexto(context.Estado)"
+                                Color="@FormatoEstados.ColorInspeccion(context.Estado)" Text="@InspeccionEstados.Texto(context.Estado)"
                                 title="@(context.Estado == InspeccionEstados.Anulada ? $"Anulada: {context.MotivoAnulacion}" : null)" />
                         </MudTd>
                         <MudTd DataLabel="Resultado">
                             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                                Color="@ResultadoColor(context.Resultado)"
+                                Color="@FormatoEstados.ColorResultado(context.Resultado)"
                                 Text="@InspeccionResultados.Texto(context.Resultado)" />
                         </MudTd>
                         <MudTd DataLabel="Firma">
                             <MudIcon Icon="@(context.TieneFirma ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
                                 Color="@(context.TieneFirma ? Color.Success : Color.Default)" Size="Size.Small" />
                         </MudTd>
-                        <MudTd DataLabel="Evid. / Hall.">@context.TotalEvidencias / @context.TotalHallazgos</MudTd>
-                        <MudTd DataLabel="Acciones" Class="acciones-inspeccion">
-                            @if (context.Estado == InspeccionEstados.EnCurso && puedeEjecutar)
+                        <MudTd DataLabel="Evidencias">@context.TotalEvidencias</MudTd>
+                        @* Total y, si las hay, cuántas siguen pendientes: en una sola columna la tabla cabe sin desplazarse (M-02). *@
+                        <MudTd DataLabel="Novedades">
+                            <span>@context.TotalNovedades</span>
+                            @if (context.NovedadesPendientes > 0)
                             {
-                                <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Class="ml-1 my-0"
+                                         Text="@($"{context.NovedadesPendientes} pend.")"
+                                         title="@($"Novedades pendientes: {context.NovedadesPendientes} de {context.TotalNovedades}")" />
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Acciones" Class="col-acciones">
+                            @if (PuedeContinuar(context))
+                            {
+                                <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
                                     StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="() => Continuar(context)" Class="action-button">
                                     Continuar
                                 </MudButton>
                             }
-                            else if (context.Estado == InspeccionEstados.Cerrada)
+                            else if (InspeccionEstados.EstaFirmada(context.Estado))
                             {
                                 <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled"
                                     StartIcon="@Icons.Material.Filled.Assignment" OnClick="() => VerResultado(context)" Class="action-button">
                                     Ver resultado
                                 </MudButton>
                             }
+                            @* El Operador no entra a Novedades: las de su inspección las ve en «Ver resultado». *@
+                            @if (context.TotalNovedades > 0 && veNovedades)
+                            {
+                                <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                                    StartIcon="@Icons.Material.Filled.ReportProblem" Href="@($"/novedades?inspeccion={context.IdInspeccion}")" Class="action-button">
+                                    Novedades
+                                </MudButton>
+                            }
                             <MudButton Size="Size.Small" Color="Color.Info" Variant="Variant.Filled"
                                 StartIcon="@Icons.Material.Filled.Visibility" OnClick="() => OpenViewDialog(context)" Class="action-button">
                                 Ver
                             </MudButton>
-                            @if (puedeEjecutar && context.Estado != InspeccionEstados.Anulada)
-                            {
-                                <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
-                                    StartIcon="@Icons.Material.Filled.Edit" OnClick="() => OpenEditDialog(context)" Class="action-button">
-                                    Editar
-                                </MudButton>
-                            }
-                            @* Fase 4 (§3.6): una inspección en curso ya no se borra, se anula con motivo y se
-                               conserva con sus respuestas y fotos. Una cerrada no se toca (regla 6). *@
-                            @if (puedeEjecutar && context.Estado == InspeccionEstados.EnCurso)
+                            @* Sin «Editar» (22/10/2026): la inspección se completa en la ejecución («Continuar»).
+                               Fase 4 (§3.6): una inspección en curso no se borra, se anula con motivo y se
+                               conserva con sus respuestas y fotos; solo la anula el Administrador, igual que
+                               el API. Una cerrada no se toca (regla 6). *@
+                            @if (esAdmin && context.Estado == InspeccionEstados.EnCurso)
                             {
                                 <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
                                     StartIcon="@Icons.Material.Filled.Block" OnClick="() => AnularInspeccion(context)" Class="action-button">
@@ -137,19 +152,33 @@
     private int currentPage = 1;
     private int pageSize = 10;
     private int totalPages = 1;
-    private bool isLoading = false;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
 
-    // Administrador y Técnico ejecutan y editan; el Auditor solo consulta.
+    // Administrador, Operador y Estándar ejecutan; el Supervisor solo consulta. Anular es del Administrador.
     private bool esAdmin;
     private bool puedeEjecutar;
+    private long? idUsuario;
+
+    // La pantalla Novedades es de Administrador, Estándar y Supervisor (igual que el menú).
+    private bool veNovedades;
 
     protected override async Task OnInitializedAsync()
     {
         var roles = await AuthorizationService.GetUserRolesAsync();
-        esAdmin = roles.Contains("Administrador");
-        puedeEjecutar = esAdmin || roles.Contains("Técnico");
+        esAdmin = roles.Contains(RolesSistema.Administrador);
+        puedeEjecutar = esAdmin || roles.Contains(RolesSistema.Operador) || roles.Contains(RolesSistema.Estandar);
+        veNovedades = esAdmin || roles.Contains(RolesSistema.Estandar) || roles.Contains(RolesSistema.Supervisor);
+        idUsuario = long.TryParse(await AuthorizationService.GetUserIdAsync(), out var id) ? id : null;
         await LoadInspeccionesAsync();
     }
+
+    // El Estándar ve las inspecciones de todos, pero continúa solo las suyas: como en el API, una en
+    // curso la modifican quien la ejecuta o el Administrador.
+    private bool PuedeContinuar(InspeccionDto inspeccion) =>
+        inspeccion.Estado == InspeccionEstados.EnCurso
+        && (esAdmin || (puedeEjecutar && inspeccion.IdUsuario == idUsuario));
 
     private async Task LoadInspeccionesAsync()
     {
@@ -173,7 +202,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             inspecciones = new List<InspeccionDto>();
         }
         finally
@@ -224,7 +253,7 @@
 
     private async Task OpenCreateDialog()
     {
-        // El registro manual (POST /api/inspecciones) es solo del Administrador; un Técnico inicia
+        // El registro manual (POST /api/inspecciones) es solo del Administrador; un Operador o un Estándar inicia
         // la inspección eligiendo equipo y checklist, igual que desde el QR.
         if (!esAdmin)
         {
@@ -233,18 +262,6 @@
         }
 
         var dialog = await DialogService.ShowAsync<InspeccionModal>("Registrar Nueva Inspección");
-        var result = await dialog.Result;
-
-        if (result is not null && !result.Canceled)
-        {
-            await LoadInspeccionesAsync();
-        }
-    }
-
-    private async Task OpenEditDialog(InspeccionDto inspeccion)
-    {
-        var parameters = new DialogParameters { ["Inspeccion"] = inspeccion };
-        var dialog = await DialogService.ShowAsync<InspeccionModal>("Editar Inspección", parameters);
         var result = await dialog.Result;
 
         if (result is not null && !result.Canceled)
@@ -286,26 +303,6 @@
         }
     }
 
-    private static Color EstadoColor(string estado) => estado switch
-    {
-        InspeccionEstados.Cerrada => Color.Success,
-        InspeccionEstados.Anulada => Color.Default,
-        _ => Color.Warning
-    };
-
-    private static string EstadoTexto(string estado) => estado switch
-    {
-        InspeccionEstados.EnCurso => "En curso",
-        _ => estado
-    };
-
-    private static Color ResultadoColor(string? resultado) => (resultado ?? string.Empty).ToLowerInvariant() switch
-    {
-        // Conforme / ConNovedad los calcula el servidor al firmar; los otros dos son de la Fase 1-2.
-        "conforme" or "satisfactoria" => Color.Success,
-        "connovedad" or "con novedad" => Color.Warning,
-        _ => Color.Default
-    };
 }
 
 <style>
@@ -319,15 +316,5 @@
 .action-button:hover {
     box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
     transform: translateY(-1px) !important;
-}
-
-/* En el teléfono la tabla se apila y cada celda es una fila flex: sin el salto de línea los
-   cuatro botones ocupan unos 400 px seguidos y ensanchan toda la página (y los modales). */
-@@media (max-width: 599.98px) {
-    .acciones-inspeccion {
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 4px;
-    }
 }
 </style>

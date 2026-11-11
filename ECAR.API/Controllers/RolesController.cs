@@ -1,5 +1,6 @@
 using ECAR.Infrastructure.Data;
 using ECAR.Infrastructure.Entities;
+using ECAR.Shared;
 using ECAR.Shared.DTOs;
 using ECAR.Shared.Responses;
 using Microsoft.AspNetCore.Authorization;
@@ -10,13 +11,10 @@ namespace ECAR.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Administrador")]
+[Authorize(Roles = RolesSistema.Administrador)]
 public class RolesController : ControllerBase
 {
-    private static readonly HashSet<string> SystemRoles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Administrador", "Técnico", "Auditor"
-    };
+    private static readonly HashSet<string> SystemRoles = new(RolesSistema.DelSistema, StringComparer.OrdinalIgnoreCase);
 
     private readonly ECARDbContext _context;
 
@@ -44,7 +42,9 @@ public class RolesController : ControllerBase
 
         var totalCount = await query.CountAsync();
 
+        // Paginar sin orden definido deja que el orden varíe entre consultas y repita u omita filas (M-14).
         var roles = await query
+            .OrderBy(r => r.IdRol)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(r => new RolDto

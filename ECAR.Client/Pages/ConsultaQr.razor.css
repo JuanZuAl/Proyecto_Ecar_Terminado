@@ -1,6 +1,6 @@
 ﻿.qr-page {
 min-height: 100vh;
-background-color: #f4f6f8;
+background-color: var(--background);
 display: flex;
 align-items: flex-start;
 justify-content: center;
@@ -12,6 +12,22 @@ display: flex;
 align-items: center;
 justify-content: center;
 min-height: 60vh;
+}
+
+/* Logo y tarjeta, uno bajo el otro y centrados (M-08). */
+.qr-columna {
+width: 100%;
+max-width: 420px;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 1rem;
+}
+
+.qr-logo {
+height: 84px;
+width: 84px;
+object-fit: contain;
 }
 
 .qr-card {

@@ -1,5 +1,6 @@
 using BCrypt.Net;
 using ECAR.Infrastructure.Entities;
+using ECAR.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -9,8 +10,31 @@ public static class DataSeeder
 {
     public static async Task SeedDataAsync(ECARDbContext context, IConfiguration configuration)
     {
+        // Roles del sistema (RolesSistema, decisión de ECAR del 21/10/2026). En una base anterior,
+        // «Técnico» pasa a «Operador» y «Auditor» a «Supervisor»: se renombra la fila, así sus
+        // usuarios conservan el rol (UsuarioRoles va por Id) y el cambio queda en la auditoría. Si ya
+        // existe el nombre nuevo no se toca nada. Después se siembran los que falten, como «Estándar».
+        var rolesActuales = await context.Roles.ToListAsync();
+        foreach (var (anterior, nuevo) in new[]
+                 {
+                     (RolesSistema.TecnicoAnterior, RolesSistema.Operador),
+                     (RolesSistema.AuditorAnterior, RolesSistema.Supervisor)
+                 })
+        {
+            var rol = rolesActuales.FirstOrDefault(r => string.Equals(r.Nombre, anterior, StringComparison.OrdinalIgnoreCase));
+            if (rol != null && !rolesActuales.Any(r => string.Equals(r.Nombre, nuevo, StringComparison.OrdinalIgnoreCase)))
+            {
+                rol.Nombre = nuevo;
+            }
+        }
+
+        if (context.ChangeTracker.HasChanges())
+        {
+            await context.SaveChangesAsync();
+        }
+
         // Se siembra cada grupo por separado para poder completar sin riesgo una base parcialmente poblada.
-        var requiredRoleNames = new[] { "Administrador", "Técnico", "Auditor" };
+        var requiredRoleNames = RolesSistema.DelSistema;
         var existingRoleNames = await context.Roles.Select(r => r.Nombre).ToListAsync();
         var missingRoles = requiredRoleNames
             .Except(existingRoleNames, StringComparer.OrdinalIgnoreCase)
@@ -40,7 +64,7 @@ public static class DataSeeder
             await context.SaveChangesAsync();
         }
 
-        var adminRol = await context.Roles.SingleAsync(r => r.Nombre == "Administrador");
+        var adminRol = await context.Roles.SingleAsync(r => r.Nombre == RolesSistema.Administrador);
         if (!await context.UsuarioRoles.AnyAsync(ur =>
                 ur.IdUsuario == adminUsuario.IdUsuario && ur.IdRol == adminRol.IdRol))
         {
@@ -59,13 +83,11 @@ public static class DataSeeder
             new CategoriaEquipo { Nombre = "Equipos de Producción", Descripcion = "Maquinaria de línea de producción" },
             new CategoriaEquipo { Nombre = "Servicios Industriales", Descripcion = "Compresores, calderas, HVAC" }
         };
-        var existingCategoryNames = await context.CategoriasEquipo.Select(c => c.Nombre).ToListAsync();
-        var missingCategories = requiredCategories
-            .Where(required => !existingCategoryNames.Contains(required.Nombre, StringComparer.OrdinalIgnoreCase))
-            .ToList();
-        if (missingCategories.Count > 0)
+        // Categorías y ubicaciones de ejemplo: solo en una tabla vacía, es decir, en la primera instalación (08/11/2026).
+        // Antes se volvían a crear en cada arranque las que faltaran, así que el Administrador no podía borrarlas.
+        if (!await context.CategoriasEquipo.AnyAsync())
         {
-            await context.CategoriasEquipo.AddRangeAsync(missingCategories);
+            await context.CategoriasEquipo.AddRangeAsync(requiredCategories);
             await context.SaveChangesAsync();
         }
 
@@ -75,17 +97,9 @@ public static class DataSeeder
             new Ubicacion { Planta = "Planta Principal", Area = "Control de Calidad", Descripcion = "Laboratorio de QC" },
             new Ubicacion { Planta = "Planta Principal", Area = "Almacén", Descripcion = "Bodega de insumos y producto terminado" }
         };
-        var existingLocations = await context.Ubicaciones
-            .Select(u => new { u.Planta, u.Area })
-            .ToListAsync();
-        var missingLocations = requiredLocations
-            .Where(required => !existingLocations.Any(existing =>
-                string.Equals(existing.Planta, required.Planta, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(existing.Area, required.Area, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-        if (missingLocations.Count > 0)
+        if (!await context.Ubicaciones.AnyAsync())
         {
-            await context.Ubicaciones.AddRangeAsync(missingLocations);
+            await context.Ubicaciones.AddRangeAsync(requiredLocations);
             await context.SaveChangesAsync();
         }
     }

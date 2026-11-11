@@ -21,7 +21,7 @@ public class BorradoInspeccionTests
     private sealed class FakeCurrentUser(long idUsuario, params string[] roles) : ICurrentUser
     {
         public long IdUsuario => idUsuario;
-        public string Nombre => "Técnico";
+        public string Nombre => "Operador";
         public IReadOnlyCollection<string> Roles => roles;
         public bool IsInRole(string role) => roles.Contains(role, StringComparer.OrdinalIgnoreCase);
     }
@@ -57,7 +57,7 @@ public class BorradoInspeccionTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-        var tecnico = new Usuario { Nombre = "Técnico", Correo = "tecnico@ecar.test", PasswordHash = FirmaPruebas.PasswordHash, Activo = true };
+        var tecnico = new Usuario { Nombre = "Operador", Correo = "tecnico@ecar.test", PasswordHash = FirmaPruebas.PasswordHash, Activo = true };
         var equipo = new Equipo
         {
             CodigoInterno = "EQ-001",
@@ -105,8 +105,9 @@ public class BorradoInspeccionTests
         return inspeccion;
     }
 
-    private static InspeccionesController Controlador(Escenario escenario, IEvidenciaStorage storage) =>
-        Fabrica.Inspecciones(escenario.Context, new FakeCurrentUser(escenario.Tecnico.IdUsuario, "Técnico"), storage);
+    private static InspeccionesController Controlador(Escenario escenario, IEvidenciaStorage storage,
+        string rol = RolesSistema.Operador) =>
+        Fabrica.Inspecciones(escenario.Context, new FakeCurrentUser(escenario.Tecnico.IdUsuario, rol), storage);
 
     private static readonly MotivoDto Motivo = new() { Motivo = "Se abrió sobre el equipo equivocado" };
 
@@ -121,7 +122,9 @@ public class BorradoInspeccionTests
             "2026/10/1/a.jpg", "2026/10/1/b.jpg");
         var storage = new FakeStorage();
 
-        var action = await Controlador(escenario, storage).AnularInspeccion(inspeccion.IdInspeccion, Motivo);
+        // Solo el Administrador anula (22/10/2026).
+        var action = await Controlador(escenario, storage, RolesSistema.Administrador)
+            .AnularInspeccion(inspeccion.IdInspeccion, Motivo);
 
         Assert.IsType<OkObjectResult>(action.Result);
         Assert.Empty(storage.Eliminados); // §3.6: nada se borra

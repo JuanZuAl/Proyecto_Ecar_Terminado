@@ -4,17 +4,19 @@
 
 <MudCard Class="pa-4 mb-4">
     <MudText Typo="Typo.h6" Class="mb-3">Resumen antes de firmar</MudText>
+    <div class="ficha-datos mb-0">
     <MudGrid>
         <MudItem xs="12" sm="6">
             <MudText Typo="Typo.body2"><b>Equipo:</b> @Inspeccion.NombreEquipo</MudText>
             <MudText Typo="Typo.body2"><b>Checklist:</b> @Inspeccion.NombreChecklist (v. @Inspeccion.VersionChecklist)</MudText>
         </MudItem>
         <MudItem xs="12" sm="6">
-            <MudText Typo="Typo.body2"><b>Preguntas:</b> @Inspeccion.Preguntas.Count respuesta(s)</MudText>
-            <MudText Typo="Typo.body2"><b>Novedades:</b> @Inspeccion.TotalNovedades novedad(es)</MudText>
-            <MudText Typo="Typo.body2"><b>Evidencias:</b> @Inspeccion.Evidencias.Count fotografía(s)</MudText>
+            <MudText Typo="Typo.body2"><b>Preguntas:</b> @Texto.Cantidad(Inspeccion.Preguntas.Count, "respuesta", "respuestas")</MudText>
+            <MudText Typo="Typo.body2"><b>Novedades:</b> @Texto.Cantidad(Inspeccion.TotalNovedades, "novedad", "novedades")</MudText>
+            <MudText Typo="Typo.body2"><b>Evidencias:</b> @Texto.Cantidad(Inspeccion.Evidencias.Count, "fotografía", "fotografías")</MudText>
         </MudItem>
     </MudGrid>
+    </div>
 </MudCard>
 
 <MudAlert Severity="Severity.Warning" Class="mb-4 text-justify">
@@ -57,7 +59,8 @@
 
     public const string TextoLegal =
         "Al firmar, declaro que realicé esta inspección y que la información registrada es veraz. " +
-        "La inspección quedará cerrada y no podrá modificarse.";
+        "La inspección quedará firmada y no podrá modificarse. Si tiene novedades, se avisará por correo " +
+        "a la mesa de ayuda y la inspección se cerrará cuando se resuelvan todas.";
 
     private bool firmando;
     protected bool Firmando => firmando;
@@ -127,7 +130,7 @@
             return;
         }
 
-        Snackbar.Add("Inspección firmada y cerrada", Severity.Success);
+        Snackbar.Add(respuesta.Message, Severity.Success);
         await OnFirmada.InvokeAsync(respuesta.Data);
     }
 

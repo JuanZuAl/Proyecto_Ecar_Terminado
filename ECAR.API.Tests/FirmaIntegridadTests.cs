@@ -85,6 +85,7 @@ public class FirmaIntegridadTests
             IdChecklist = checklist.IdChecklist,
             IdUsuario = tecnico.IdUsuario,
             FechaInspeccion = DateTime.UtcNow,
+            Sede = Sedes.Rionegro,
             Estado = InspeccionEstados.EnCurso
         };
         context.Inspecciones.Add(inspeccion);
@@ -113,7 +114,7 @@ public class FirmaIntegridadTests
     }
 
     private static InspeccionesController Controlador(Escenario escenario, long idUsuario, params string[] roles) =>
-        new(escenario.Context, new UsuarioActual(idUsuario, roles.Length == 0 ? ["Técnico"] : roles),
+        new(escenario.Context, new UsuarioActual(idUsuario, roles.Length == 0 ? ["Operador"] : roles),
             new InspeccionService(escenario.Context), escenario.Almacen, NullLogger<InspeccionesController>.Instance);
 
     private static Task<ActionResult<ApiResponse<InspeccionResultadoDto>>> FirmarAsync(Escenario escenario, string? password) =>
@@ -126,7 +127,7 @@ public class FirmaIntegridadTests
     private static async Task<IntegridadInspeccionDto> VerificarAsync(Escenario escenario, string clave = FirmaPruebas.ClaveHmac)
     {
         escenario.Context.ChangeTracker.Clear();
-        var resultado = await Controlador(escenario, 99, "Auditor").VerificarIntegridad(
+        var resultado = await Controlador(escenario, 99, "Supervisor").VerificarIntegridad(
             escenario.Inspeccion.IdInspeccion, FirmaPruebas.CrearVerificador(escenario.Almacen, clave));
         var ok = Assert.IsType<OkObjectResult>(resultado.Result);
         return Assert.IsType<ApiResponse<IntegridadInspeccionDto>>(ok.Value).Data!;
@@ -193,13 +194,13 @@ public class FirmaIntegridadTests
         var dto = Assert.IsType<ApiResponse<InspeccionResultadoDto>>(Assert.IsType<OkObjectResult>(resultado.Result).Value).Data!;
         Assert.Equal("Técnico Firmante", dto.FirmaNombre);
         Assert.Equal(VerificadorIntegridad.SignificadoEjecucion, dto.FirmaSignificado);
-        Assert.Equal(VerificadorIntegridad.AlgoritmoHmac, dto.FirmaAlgoritmo);
+        Assert.Equal(VerificadorIntegridad.AlgoritmoHmacV3, dto.FirmaAlgoritmo);
 
         var guardada = await LeerAsync(escenario);
         Assert.Equal(InspeccionEstados.Cerrada, guardada.Estado);
         Assert.NotNull(guardada.FechaCierre);
         Assert.Equal("Técnico Firmante", guardada.FirmaNombre);
-        Assert.Equal(VerificadorIntegridad.AlgoritmoHmac, guardada.FirmaAlgoritmo);
+        Assert.Equal(VerificadorIntegridad.AlgoritmoHmacV3, guardada.FirmaAlgoritmo);
         Assert.Equal(64, guardada.FirmaHash!.Length);
     }
 
@@ -213,7 +214,7 @@ public class FirmaIntegridadTests
         var integridad = await VerificarAsync(escenario);
 
         Assert.True(integridad.Integra);
-        Assert.Equal(VerificadorIntegridad.AlgoritmoHmac, integridad.Algoritmo);
+        Assert.Equal(VerificadorIntegridad.AlgoritmoHmacV3, integridad.Algoritmo);
         Assert.Contains(await escenario.Context.Auditoria.AsNoTracking().ToListAsync(),
             a => a.Accion == AuditoriaAcciones.VerificacionIntegridad);
     }
@@ -306,7 +307,7 @@ public class FirmaIntegridadTests
         var escenario = await CrearEscenarioAsync();
         await using var _ = escenario.Context;
 
-        var resultado = await Controlador(escenario, 99, "Auditor").VerificarIntegridad(
+        var resultado = await Controlador(escenario, 99, "Supervisor").VerificarIntegridad(
             escenario.Inspeccion.IdInspeccion, FirmaPruebas.CrearVerificador(escenario.Almacen));
 
         Assert.IsType<ConflictObjectResult>(resultado.Result);

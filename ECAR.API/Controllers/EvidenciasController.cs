@@ -15,7 +15,7 @@ namespace ECAR.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Administrador,Técnico,Auditor")]
+[Authorize(Roles = RolesSistema.Todos)]
 public class EvidenciasController : ControllerBase
 {
     private readonly ECARDbContext _context;
@@ -39,10 +39,17 @@ public class EvidenciasController : ControllerBase
     }
 
     /// <summary>
-    /// Las fotos retiradas (§3.6) solo las ven el Administrador y el Auditor, marcadas; para el
-    /// Técnico y en la ejecución desaparecen, aunque se conservan.
+    /// Las fotos de cualquier inspección, las haya subido quien las haya subido, las ven quienes leen
+    /// todas las inspecciones: el Administrador, el Supervisor y el Estándar (AccesoInspeccion). El
+    /// Operador, solo las de sus inspecciones. Verlas no es retirarlas (<see cref="RetirarEvidencia"/>).
     /// </summary>
-    private bool VeRetiradas => User.IsInRole("Administrador") || User.IsInRole("Auditor");
+    private bool VeTodas => AccesoInspeccion.LeeTodas(_currentUser);
+
+    /// <summary>
+    /// Las fotos retiradas (§3.6) solo las ven el Administrador y el Supervisor, marcadas; para el
+    /// Operador, el Estándar y en la ejecución desaparecen, aunque se conservan.
+    /// </summary>
+    private bool VeRetiradas => User.IsInRole(RolesSistema.Administrador) || User.IsInRole(RolesSistema.Supervisor);
 
     // GET: api/evidencias O api/inspecciones/{idInspeccion}/evidencias
     [HttpGet]
@@ -71,8 +78,8 @@ public class EvidenciasController : ControllerBase
             query = query.Where(e => e.IdInspeccion == idInspeccion.Value);
         }
 
-        // Filtro si es Técnico
-        if (User.IsInRole("Técnico"))
+        // El Operador, las de sus inspecciones
+        if (!VeTodas)
         {
             query = query.Where(e => e.IdUsuarioCarga == _currentUser.IdUsuario || e.Inspeccion.IdUsuario == _currentUser.IdUsuario);
         }
@@ -102,6 +109,7 @@ public class EvidenciasController : ControllerBase
                 FechaCarga = e.FechaCarga,
                 IdUsuarioCarga = e.IdUsuarioCarga,
                 UsuarioCarga = e.UsuarioCargaDetalle.Nombre,
+                IdUsuarioInspeccion = e.Inspeccion.IdUsuario,
                 EstadoInspeccion = e.Inspeccion.Estado ?? string.Empty,
                 Retirada = e.Retirada,
                 FechaRetiro = e.FechaRetiro,
@@ -126,7 +134,8 @@ public class EvidenciasController : ControllerBase
     /// Evidencias de una inspección (endpoint 8 del contrato, PLAN_FASE3_TAREAS §3.2): una lista,
     /// no una página. Antes esta ruta compartía acción con el listado paginado y devolvía
     /// PagedResultDto, y el cliente, que deserializa List&lt;EvidenciaDto&gt;, recibía null.
-    /// Un Técnico solo ve las de sus propias inspecciones, como en GET {id}/archivo.
+    /// Un Operador ve las de sus inspecciones; el Estándar, como el Administrador y el Supervisor, las
+    /// de cualquiera (<see cref="VeTodas"/>), como en GET {id}/archivo.
     /// </summary>
     [HttpGet("/api/inspecciones/{idInspeccion:long}/evidencias")]
     public async Task<ActionResult<ApiResponse<List<EvidenciaDto>>>> GetEvidenciasInspeccion(long idInspeccion)
@@ -140,7 +149,7 @@ public class EvidenciasController : ControllerBase
             return NotFound(ApiResponse<List<EvidenciaDto>>.ErrorResponse("Inspección no encontrada"));
         }
 
-        if (User.IsInRole("Técnico") && inspeccion.IdUsuario != _currentUser.IdUsuario)
+        if (!VeTodas && inspeccion.IdUsuario != _currentUser.IdUsuario)
         {
             return Forbid();
         }
@@ -160,6 +169,7 @@ public class EvidenciasController : ControllerBase
                 FechaCarga = e.FechaCarga,
                 IdUsuarioCarga = e.IdUsuarioCarga,
                 UsuarioCarga = e.UsuarioCargaDetalle.Nombre,
+                IdUsuarioInspeccion = e.Inspeccion.IdUsuario,
                 EstadoInspeccion = e.Inspeccion.Estado ?? string.Empty
             })
             .ToListAsync();
@@ -182,7 +192,8 @@ public class EvidenciasController : ControllerBase
             return NotFound(ApiResponse<EvidenciaDto>.ErrorResponse("Evidencia no encontrada"));
         }
 
-        if (User.IsInRole("Técnico") && evidencia.IdUsuarioCarga != _currentUser.IdUsuario && evidencia.Inspeccion.IdUsuario != _currentUser.IdUsuario)
+        if (!VeTodas && evidencia.IdUsuarioCarga != _currentUser.IdUsuario
+            && evidencia.Inspeccion.IdUsuario != _currentUser.IdUsuario)
         {
             return Forbid();
         }
@@ -209,7 +220,7 @@ public class EvidenciasController : ControllerBase
             return NotFound(ApiResponse<bool>.ErrorResponse("Evidencia no encontrada"));
         }
 
-        if (User.IsInRole("Técnico") && evidencia.Inspeccion.IdUsuario != _currentUser.IdUsuario)
+        if (!VeTodas && evidencia.Inspeccion.IdUsuario != _currentUser.IdUsuario)
         {
             return Forbid();
         }
@@ -232,7 +243,7 @@ public class EvidenciasController : ControllerBase
 
     // POST: api/inspecciones/{idInspeccion}/evidencias
     [HttpPost("/api/inspecciones/{idInspeccion:long}/evidencias")]
-   [Authorize(Roles = "Administrador,Técnico")]
+   [Authorize(Roles = RolesSistema.Inspeccionan)]
     public async Task<ActionResult<ApiResponse<EvidenciaDto>>> CreateEvidencia(
         long idInspeccion,
         [FromForm] IFormFile archivo)
@@ -291,7 +302,7 @@ public class EvidenciasController : ControllerBase
                 InmutabilidadInspeccion.MensajeSiNoAdmiteCambios(inspeccion.Estado) ?? InmutabilidadInspeccion.MensajeCerrada));
         }
 
-        if (User.IsInRole("Técnico") && inspeccion.IdUsuario != _currentUser.IdUsuario)
+        if (!User.IsInRole(RolesSistema.Administrador) && inspeccion.IdUsuario != _currentUser.IdUsuario)
         {
             return Forbid();
         }
@@ -332,6 +343,7 @@ public class EvidenciasController : ControllerBase
             FechaCarga = evidencia.FechaCarga,
             IdUsuarioCarga = evidencia.IdUsuarioCarga,
             UsuarioCarga = _currentUser.Nombre,
+            IdUsuarioInspeccion = inspeccion.IdUsuario,
             EstadoInspeccion = inspeccion.Estado ?? string.Empty
         };
 
@@ -342,10 +354,10 @@ public class EvidenciasController : ControllerBase
     /// <summary>
     /// Endpoint 11 (PLAN_FASE4_TAREAS §3.6): una foto quitada antes de firmar se marca como
     /// retirada, con motivo, y el archivo se conserva. Solo en una inspección en curso, y solo el
-    /// Administrador o el técnico que la subió o ejecuta la inspección. No hay DELETE (405).
+    /// Administrador o el usuario que la subió o ejecuta la inspección. No hay DELETE (405).
     /// </summary>
     [HttpPost("{id:long}/retirar")]
-    [Authorize(Roles = "Administrador,Técnico")]
+    [Authorize(Roles = RolesSistema.Inspeccionan)]
     public async Task<ActionResult<ApiResponse<EvidenciaDto>>> RetirarEvidencia(long id, MotivoDto dto)
     {
         var evidencia = await _context.Evidencias
@@ -359,7 +371,7 @@ public class EvidenciasController : ControllerBase
             return NotFound(ApiResponse<EvidenciaDto>.ErrorResponse("Evidencia no encontrada"));
         }
 
-        // Regla 6: las evidencias de una inspección cerrada (o anulada) no se tocan.
+        // Regla 6: las evidencias de una inspección firmada (o anulada) no se tocan.
         if (evidencia.Inspeccion.Estado != InspeccionEstados.EnCurso)
         {
             return Conflict(ApiResponse<EvidenciaDto>.ErrorResponse(
@@ -368,7 +380,7 @@ public class EvidenciasController : ControllerBase
                     : InmutabilidadInspeccion.MensajeCerrada));
         }
 
-        if (!User.IsInRole("Administrador")
+        if (!User.IsInRole(RolesSistema.Administrador)
             && evidencia.IdUsuarioCarga != _currentUser.IdUsuario
             && evidencia.Inspeccion.IdUsuario != _currentUser.IdUsuario)
         {
@@ -403,6 +415,7 @@ public class EvidenciasController : ControllerBase
         FechaCarga = evidencia.FechaCarga,
         IdUsuarioCarga = evidencia.IdUsuarioCarga,
         UsuarioCarga = evidencia.UsuarioCargaDetalle?.Nombre ?? string.Empty,
+        IdUsuarioInspeccion = evidencia.Inspeccion?.IdUsuario ?? 0,
         EstadoInspeccion = evidencia.Inspeccion?.Estado ?? string.Empty,
         Retirada = evidencia.Retirada,
         FechaRetiro = evidencia.FechaRetiro,

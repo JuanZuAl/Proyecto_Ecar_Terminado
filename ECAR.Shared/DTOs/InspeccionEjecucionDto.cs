@@ -31,17 +31,21 @@ public class InspeccionEjecucionDto
     public long IdUsuario { get; set; }
     public string NombreUsuario { get; set; } = string.Empty;
 
+    /// <summary>Sede (Rionegro o Medellín); se elige en el formulario y es obligatoria para firmar.</summary>
+    public string? Sede { get; set; }
+
     // --- Contenido del flujo ---
     public List<PreguntaEjecucionDto> Preguntas { get; set; } = new();
     public List<EvidenciaDto> Evidencias { get; set; } = new();
 
     // --- Contadores calculados por el servidor ---
-    // El cliente los recalcula localmente tras cada guardado para refrescar la UI sin releer.
+    // El cliente los recalcula localmente tras cada guardado para refrescar la UI sin releer. Desde el 04/11/2026 las
+    // obligatorias son solo las que piden escribir una respuesta (TiposRespuesta.PideRespuesta).
     public int TotalObligatorias { get; set; }
     public int ObligatoriasRespondidas { get; set; }
     public int TotalNovedades { get; set; }
 
-    public bool EstaCerrada => Estado == InspeccionEstados.Cerrada;
+    public bool EstaCerrada => InspeccionEstados.EstaFirmada(Estado);
 
     /// <summary>Fase 4: anulada con motivo; como una cerrada, ya no admite cambios.</summary>
     public bool EstaAnulada => Estado == InspeccionEstados.Anulada;

@@ -3,13 +3,14 @@
 @inject SesionService Sesion
 @inject NavigationManager NavigationManager
 @inject ISnackbar Snackbar
+@inject AuthorizationService AuthorizationService
 
 @* Esqueleto de la ejecución de inspección (FE-0).
    Carga el estado completo una sola vez y lo reparte a los tres componentes de paso.
    FE-1, FE-2 y FE-3 solo tocan su propio componente: este archivo tiene un único dueño
    para que los tres PR de la semana no choquen sobre el mismo fichero. *@
 
-<TecnicoRouteGuard>
+<InspectorRouteGuard>
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4 pb-8">
 
     @if (cargando)
@@ -20,7 +21,7 @@
     {
         <MudAlert Severity="Severity.Error" Class="my-4">
             No fue posible cargar la inspección.
-            <MudButton Variant="Variant.Text" Color="Color.Inherit" Class="ml-2"
+            <MudButton Variant="Variant.Filled" Color="Color.Default" Class="ml-2"
                        OnClick="@(() => NavigationManager.NavigateTo("/inspecciones"))">
                 Volver al listado
             </MudButton>
@@ -67,7 +68,7 @@
                de firma tiene su propio botón de cierre. *@
             <ActionContent Context="stepper">
                 <div class="d-flex justify-space-between align-center gap-2 mt-4" style="width:100%">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                    <MudButton Variant="Variant.Filled" Color="Color.Default"
                                Disabled="@(pasoActivo == 0)"
                                StartIcon="@Icons.Material.Filled.ArrowBack"
                                OnClick="@(() => stepper.PreviousStepAsync())">
@@ -88,7 +89,7 @@
     }
 
 </MudContainer>
-</TecnicoRouteGuard>
+</InspectorRouteGuard>
 
 @code {
     [Parameter] public long IdInspeccion { get; set; }
@@ -100,13 +101,16 @@
     /// <summary>Índice del paso de firma: ahí no se muestra "Siguiente".</summary>
     private const int UltimoPaso = 2;
 
+    // Sin preguntas de texto obligatorias (lo normal desde el 04/11/2026) el resumen dice cuántas novedades hay.
     private string ResumenPreguntas => inspeccion == null
         ? string.Empty
-        : $"{inspeccion.ObligatoriasRespondidas} de {inspeccion.TotalObligatorias} obligatorias";
+        : inspeccion.TotalObligatorias > 0
+            ? $"{inspeccion.ObligatoriasRespondidas} de {inspeccion.TotalObligatorias} obligatorias"
+            : Texto.Cantidad(inspeccion.TotalNovedades, "novedad", "novedades");
 
     private string ResumenEvidencias => inspeccion == null
         ? string.Empty
-        : $"{inspeccion.Evidencias.Count} fotografía(s)";
+        : Texto.Cantidad(inspeccion.Evidencias.Count, "fotografía", "fotografías");
 
     protected override async Task OnParametersSetAsync()
     {
@@ -115,7 +119,7 @@
 
     private async Task CargarAsync()
     {
-        // TecnicoRouteGuard corre en paralelo a esta página y no detiene su ciclo de vida. Sin
+        // InspectorRouteGuard corre en paralelo a esta página y no detiene su ciclo de vida. Sin
         // sesión no se llama al API: la guarda ya está mandando al login, y la petición solo
         // servía para que un "Error al cargar la inspección" se colara durante la redirección.
         if (!await Sesion.TieneSesionVigenteAsync())
@@ -151,9 +155,22 @@
             return;
         }
 
+        // El Estándar ve las inspecciones de todos, pero una ajena en curso no la continúa: como en
+        // el API, la modifican quien la ejecuta o el Administrador.
+        if (!await PuedeContinuarAsync(inspeccion))
+        {
+            Snackbar.Add("Solo quien ejecuta la inspección o el Administrador pueden continuarla", Severity.Warning);
+            NavigationManager.NavigateTo("/inspecciones", replace: true);
+            return;
+        }
+
         RefrescarContadores();
         cargando = false;
     }
+
+    private async Task<bool> PuedeContinuarAsync(InspeccionEjecucionDto ejecucion) =>
+        await AuthorizationService.IsAdminAsync()
+        || (long.TryParse(await AuthorizationService.GetUserIdAsync(), out var idUsuario) && ejecucion.IdUsuario == idUsuario);
 
     /// <summary>
     /// Recalcula los contadores sobre la copia en memoria para no volver a pedir la inspección
@@ -166,7 +183,7 @@
             return;
         }
 
-        inspeccion.TotalObligatorias = inspeccion.Preguntas.Count(p => p.Obligatoria);
+        inspeccion.TotalObligatorias = inspeccion.Preguntas.Count(p => p.Obligatoria && TiposRespuesta.PideRespuesta(p.TipoRespuesta));
         inspeccion.ObligatoriasRespondidas = inspeccion.Preguntas.Count(p => p.Obligatoria && !p.FaltaResponder);
         inspeccion.TotalNovedades = inspeccion.Preguntas.Count(p => p.EsNovedad);
         StateHasChanged();
@@ -207,6 +224,13 @@
             return false;
         }
 
+        // La sede es de toda la inspección y obligatoria para firmar (29/10/2026).
+        if (string.IsNullOrWhiteSpace(inspeccion.Sede))
+        {
+            Snackbar.Add("Elija la sede de la inspección (Rionegro o Medellín)", Severity.Warning);
+            return false;
+        }
+
         // El aviso dice cuáles faltan por su número de orden, no solo cuántas: con un checklist
         // largo, "faltan 2" obliga al técnico a repasar todo el formulario en el teléfono.
         var faltantes = NumerosDe(inspeccion.Preguntas.Where(p => p.FaltaResponder));
@@ -215,6 +239,18 @@
             Snackbar.Add(faltantes.Count == 1
                     ? $"Falta por responder la pregunta obligatoria {faltantes[0]}"
                     : $"Faltan por responder las preguntas obligatorias {UnirNumeros(faltantes)}",
+                Severity.Warning);
+            return false;
+        }
+
+        // «¿Presenta novedad?» no viene marcado y es obligatorio elegir Sí o No en TODAS las preguntas (B-13). Desde el
+        // 04/11/2026 una Sí/No no tiene respuesta propia, así que no basta con mirar las respondidas.
+        var sinElegirNovedad = NumerosDe(inspeccion.Preguntas.Where(p => p.PresentaNovedad == null));
+        if (sinElegirNovedad.Count > 0)
+        {
+            Snackbar.Add(sinElegirNovedad.Count == 1
+                    ? $"Elija Sí o No en «¿Presenta novedad?» de la pregunta {sinElegirNovedad[0]}"
+                    : $"Elija Sí o No en «¿Presenta novedad?» de las preguntas {UnirNumeros(sinElegirNovedad)}",
                 Severity.Warning);
             return false;
         }

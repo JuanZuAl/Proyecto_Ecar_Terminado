@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using ECAR.API.Configuration;
 using ECAR.API.Controllers;
 using ECAR.API.Exceptions;
@@ -11,9 +12,7 @@ using ECAR.Shared.DTOs;
 using ECAR.Shared.Responses;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -44,7 +43,7 @@ public class SeguridadCuentasTests
 
     private static async Task<Usuario> CrearUsuarioAsync(ECARDbContext context)
     {
-        var rol = new Rol { Nombre = "Técnico" };
+        var rol = new Rol { Nombre = "Operador" };
         var usuario = new Usuario
         {
             Nombre = "Cuenta de Prueba",
@@ -152,110 +151,96 @@ public class SeguridadCuentasTests
     }
 
     [Fact]
-    public async Task CambiarPassword_AplicaLaPoliticaYNoPermiteReutilizarRecientes()
+    public void LosDtoDeUsuario_NoImponenLaReglaAntiguaDeSeisCaracteres()
+    {
+        var crear = typeof(CreateUsuarioDto).GetProperty(nameof(CreateUsuarioDto.Password))!;
+        var actualizar = typeof(UpdateUsuarioDto).GetProperty(nameof(UpdateUsuarioDto.Password))!;
+
+        Assert.DoesNotContain(crear.GetCustomAttributes(true), atributo => atributo is MinLengthAttribute);
+        Assert.DoesNotContain(actualizar.GetCustomAttributes(true), atributo => atributo is MinLengthAttribute);
+    }
+
+    /// <summary>
+    /// 03/11/2026: el cambio y el restablecimiento de contraseñas los hará una API externa. Solo queda el
+    /// desbloqueo por el Administrador.
+    /// </summary>
+    [Fact]
+    public void No_hay_rutas_para_cambiar_ni_restablecer_contrasenas()
+    {
+        var rutas = typeof(AuthController).Assembly.GetTypes()
+            .Where(t => typeof(ControllerBase).IsAssignableFrom(t))
+            .SelectMany(t => t.GetMethods())
+            .SelectMany(m => m.GetCustomAttributes<HttpMethodAttribute>(inherit: true))
+            .Select(a => a.Template ?? string.Empty)
+            .ToList();
+
+        Assert.DoesNotContain(rutas, r => r.Contains("password", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("{id}/desbloquear", rutas);
+    }
+
+    [Fact]
+    public async Task Una_password_antigua_o_marcada_como_temporal_entra_sin_pedir_cambiarla()
     {
         var (context, _) = CrearContexto();
         await using var _ = context;
         var usuario = await CrearUsuarioAsync(context);
-        var servicio = FirmaPruebas.CrearAuthService(context);
-
-        Assert.Contains("La contraseña actual es incorrecta",
-            await servicio.CambiarPasswordAsync(usuario.IdUsuario, new CambiarPasswordDto { Actual = "otra", Nueva = "NuevaClave2026" }));
-        Assert.NotEmpty(await servicio.CambiarPasswordAsync(usuario.IdUsuario,
-            new CambiarPasswordDto { Actual = FirmaPruebas.Password, Nueva = "corta1" }));
-        Assert.NotEmpty(await servicio.CambiarPasswordAsync(usuario.IdUsuario,
-            new CambiarPasswordDto { Actual = FirmaPruebas.Password, Nueva = "SoloLetrasLargas" }));
-        Assert.NotEmpty(await servicio.CambiarPasswordAsync(usuario.IdUsuario,
-            new CambiarPasswordDto { Actual = FirmaPruebas.Password, Nueva = FirmaPruebas.Password }));
-
-        var selloAnterior = (await context.Usuarios.AsNoTracking().SingleAsync()).SecurityStamp;
-        Assert.Empty(await servicio.CambiarPasswordAsync(usuario.IdUsuario,
-            new CambiarPasswordDto { Actual = FirmaPruebas.Password, Nueva = "NuevaClave2026" }));
-
-        var cambiado = await context.Usuarios.AsNoTracking().SingleAsync();
-        Assert.NotEqual(selloAnterior, cambiado.SecurityStamp);
-        Assert.Single(await context.HistorialPasswords.AsNoTracking().ToListAsync());
-        Assert.Contains(await context.Auditoria.AsNoTracking().ToListAsync(),
-            a => a.Accion == AuditoriaAcciones.CambioPassword && a.RegistroId == usuario.IdUsuario);
-
-        var reutilizada = await servicio.CambiarPasswordAsync(usuario.IdUsuario,
-            new CambiarPasswordDto { Actual = "NuevaClave2026", Nueva = FirmaPruebas.Password });
-        Assert.Contains(reutilizada, e => e.Contains("últimas"));
-    }
-
-    [Fact]
-    public async Task CambiarPassword_ConActualIncorrectaDevuelve400()
-    {
-        var (context, _) = CrearContexto();
-        await using var _ = context;
-        var usuario = await CrearUsuarioAsync(context);
-        var controller = new AuthController(FirmaPruebas.CrearAuthService(context))
-        {
-            ControllerContext = new ControllerContext
-            {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(new ClaimsIdentity(
-                        [new Claim(ClaimTypes.NameIdentifier, usuario.IdUsuario.ToString())], "Pruebas"))
-                }
-            }
-        };
-
-        var resultado = await controller.CambiarPassword(new CambiarPasswordDto { Actual = "mala", Nueva = "NuevaClave2026" });
-
-        Assert.IsType<BadRequestObjectResult>(resultado.Result);
-    }
-
-    [Fact]
-    public async Task Restablecer_EntregaUnaTemporalUnaSolaVezYExigeCambiarlaAlEntrar()
-    {
-        var (context, motivo) = CrearContexto();
-        await using var _ = context;
-        var usuario = await CrearUsuarioAsync(context);
-        var selloAnterior = usuario.SecurityStamp;
-        var controller = ControladorUsuarios(context);
-        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
-
-        var resultado = await controller.RestablecerPassword(usuario.IdUsuario,
-            new MotivoDto { Motivo = "El usuario olvidó su contraseña" }, motivo);
-
-        var ok = Assert.IsType<OkObjectResult>(resultado.Result);
-        var temporal = Assert.IsType<ApiResponse<PasswordTemporalDto>>(ok.Value).Data!;
-        Assert.True(temporal.DebeCambiarAlEntrar);
-        Assert.Empty(new PoliticaPasswords(Options.Create(new SeguridadOptions())).Validar(temporal.PasswordTemporal));
-        Assert.Equal("no-store", controller.Response.Headers.CacheControl.ToString());
-
-        var guardado = await context.Usuarios.AsNoTracking().SingleAsync();
-        Assert.True(guardado.DebeCambiarPassword);
-        Assert.NotEqual(selloAnterior, guardado.SecurityStamp);
-        Assert.DoesNotContain(temporal.PasswordTemporal, guardado.PasswordHash);
-
-        var auditoria = await context.Auditoria.AsNoTracking().ToListAsync();
-        Assert.DoesNotContain(auditoria, a => (a.ValorNuevo ?? string.Empty).Contains(temporal.PasswordTemporal));
-        Assert.Contains(auditoria, a => a.Accion == AuditoriaAcciones.RestablecerPassword && a.Motivo == "El usuario olvidó su contraseña");
-
-        context.ChangeTracker.Clear();
-        var login = await FirmaPruebas.CrearAuthService(context).LoginAsync(Login(temporal.PasswordTemporal));
-        Assert.NotNull(login);
-        Assert.True(login!.DebeCambiarPassword);
-        var token = new JwtSecurityTokenHandler().ReadJwtToken(login.Token);
-        Assert.Contains(token.Claims, c => c.Type == AuthService.ClaimCambioPasswordPendiente && c.Value == "true");
-    }
-
-    [Fact]
-    public async Task PasswordCaducada_ObligaACambiarla()
-    {
-        var (context, _) = CrearContexto();
-        await using var _ = context;
-        var usuario = await CrearUsuarioAsync(context);
-        usuario.FechaCambioPassword = DateTime.UtcNow.AddDays(-91);
+        // Como quedó una cuenta restablecida antes del cambio: temporal y de hace más de un año.
+        usuario.DebeCambiarPassword = true;
+        usuario.FechaCambioPassword = DateTime.UtcNow.AddDays(-400);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
         var login = await FirmaPruebas.CrearAuthService(context).LoginAsync(Login(FirmaPruebas.Password));
 
-        Assert.True(login!.DebeCambiarPassword);
-        Assert.True(login.PasswordExpiraEl < DateTime.UtcNow);
+        Assert.NotNull(login);
+        // El token no lleva la marca de cambio pendiente que antes dejaba todo en 403.
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(login!.Token);
+        Assert.DoesNotContain(token.Claims, c => c.Type == "ecar_cambio_password");
+    }
+
+    [Fact]
+    public async Task Editar_un_usuario_no_cambia_su_password()
+    {
+        var (context, _) = CrearContexto();
+        await using var _ = context;
+        var usuario = await CrearUsuarioAsync(context);
+
+        var resultado = await ControladorUsuarios(context).UpdateUsuario(usuario.IdUsuario,
+            new UpdateUsuarioDto { Password = "OtraClave2026" });
+
+        var error = Assert.IsType<ApiResponse<UsuarioDto>>(Assert.IsType<BadRequestObjectResult>(resultado.Result).Value);
+        Assert.Equal(UsuariosController.MensajeSinCambioPassword, error.Message);
+        Assert.Equal(FirmaPruebas.PasswordHash, (await context.Usuarios.AsNoTracking().SingleAsync()).PasswordHash);
+    }
+
+    [Fact]
+    public async Task CrearUsuario_con_password_no_la_deja_temporal_y_entra_sin_cambiarla()
+    {
+        var (context, _) = CrearContexto();
+        await using var _ = context;
+        var rol = new Rol { Nombre = "Operador" };
+        context.Roles.Add(rol);
+        await context.SaveChangesAsync();
+
+        var resultado = await ControladorUsuarios(context).CreateUsuario(new CreateUsuarioDto
+        {
+            Nombre = "Nuevo",
+            Correo = "nuevo@ecar.test",
+            Password = "ClaveInicial2026",
+            RoleIds = [rol.IdRol]
+        });
+
+        Assert.IsType<CreatedAtActionResult>(resultado.Result);
+        var guardado = await context.Usuarios.AsNoTracking().SingleAsync(u => u.Correo == "nuevo@ecar.test");
+        Assert.False(guardado.DebeCambiarPassword);
+
+        context.ChangeTracker.Clear();
+        var login = await FirmaPruebas.CrearAuthService(context).LoginAsync(new LoginDto
+        {
+            CorreoOrUsuarioAD = "nuevo@ecar.test",
+            Password = "ClaveInicial2026"
+        });
+        Assert.NotNull(login);
     }
 
     [Fact]
@@ -289,34 +274,5 @@ public class SeguridadCuentasTests
         });
 
         Assert.IsType<BadRequestObjectResult>(resultado.Result);
-    }
-
-    [Fact]
-    public async Task ConPasswordPendiente_SoloSePermiteCambiarla()
-    {
-        var filtro = new CambioPasswordPendienteFilter();
-        var usuario = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(AuthService.ClaimCambioPasswordPendiente, "true")], "Pruebas"));
-
-        var bloqueada = await EjecutarFiltroAsync(filtro, usuario, permitida: false);
-        var permitida = await EjecutarFiltroAsync(filtro, usuario, permitida: true);
-
-        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(bloqueada).StatusCode);
-        Assert.Null(permitida);
-    }
-
-    private static async Task<IActionResult?> EjecutarFiltroAsync(
-        CambioPasswordPendienteFilter filtro, ClaimsPrincipal usuario, bool permitida)
-    {
-        var descriptor = new ActionDescriptor
-        {
-            EndpointMetadata = permitida ? [new PermitirCambioPasswordPendienteAttribute()] : []
-        };
-        var actionContext = new ActionContext(new DefaultHttpContext { User = usuario }, new RouteData(), descriptor);
-        var contexto = new ActionExecutingContext(actionContext, [], new Dictionary<string, object?>(), new object());
-
-        await filtro.OnActionExecutionAsync(contexto,
-            () => Task.FromResult(new ActionExecutedContext(actionContext, [], new object())));
-        return contexto.Result;
     }
 }

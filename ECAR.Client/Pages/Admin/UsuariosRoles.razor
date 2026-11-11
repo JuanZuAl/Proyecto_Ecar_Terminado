@@ -37,22 +37,22 @@
             }
             else if (asignaciones != null && asignaciones.Any())
             {
-                <MudTable Items="asignaciones" Hover="true" Striped="true" Elevation="0">
+                <MudTable Items="asignaciones" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md">
                     <HeaderContent>
                         <MudTh>ID</MudTh>
                         <MudTh>Usuario</MudTh>
                         <MudTh>Correo</MudTh>
                         <MudTh>Rol</MudTh>
-                        <MudTh>Acciones</MudTh>
+                        <MudTh Class="col-acciones">Acciones</MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd>@context.Id.ToString()</MudTd>
-                        <MudTd>@context.UsuarioNombre</MudTd>
-                        <MudTd>@context.UsuarioCorreo</MudTd>
-                        <MudTd>
+                        <MudTd DataLabel="ID">@context.Id.ToString()</MudTd>
+                        <MudTd DataLabel="Usuario">@context.UsuarioNombre</MudTd>
+                        <MudTd DataLabel="Correo">@context.UsuarioCorreo</MudTd>
+                        <MudTd DataLabel="Rol">
                             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Text="@context.RolNombre" />
                         </MudTd>
-                        <MudTd>
+                        <MudTd DataLabel="Acciones" Class="col-acciones">
                             <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
                                 StartIcon="@Icons.Material.Filled.Edit" OnClick="() => OpenEditDialog(context)" Class="action-button">
                                 Editar
@@ -87,7 +87,9 @@
     private int currentPage = 1;
     private int pageSize = 10;
     private int totalPages = 1;
-    private bool isLoading = false;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -95,6 +97,7 @@
         // comprobación, otro rol dispararía peticiones que el API rechaza con 403 (guía §3.5).
         if (!await AuthorizationService.IsAdminAsync())
         {
+            isLoading = false;
             return;
         }
 
@@ -141,7 +144,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             asignaciones = new List<UsuarioRolDto>();
         }
         finally
@@ -223,7 +226,7 @@
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+                Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             }
             finally
             {

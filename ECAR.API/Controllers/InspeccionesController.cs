@@ -2,6 +2,7 @@ using ECAR.Infrastructure.Data;
 using ECAR.Infrastructure.Entities;
 using ECAR.API.Services;
 using ECAR.API.Services.Documentos;
+using ECAR.API.Services.Notificaciones;
 using ECAR.API.Exceptions;
 using ECAR.Shared;
 using ECAR.Shared.DTOs;
@@ -14,7 +15,7 @@ namespace ECAR.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Administrador,Técnico,Auditor")]
+[Authorize(Roles = RolesSistema.Todos)]
 public class InspeccionesController : ControllerBase
 {
     private readonly ECARDbContext _context;
@@ -23,13 +24,16 @@ public class InspeccionesController : ControllerBase
     private readonly IEvidenciaStorage _storage;
     private readonly ILogger<InspeccionesController> _logger;
     private readonly IMotivoCambio _motivoCambio;
+    private readonly INotificadorNovedades? _notificador;
 
     /// <param name="motivoCambio">
     /// Motivo que la auditoría copia en sus filas (anular). Es opcional solo para no cambiar las
     /// pruebas que ya construyen el controlador; en el API siempre lo inyecta el contenedor.
     /// </param>
+    /// <param name="notificador">El correo de cada novedad a la mesa de ayuda; opcional por lo mismo.</param>
     public InspeccionesController(ECARDbContext context, ICurrentUser currentUser, IInspeccionService inspeccionService,
-        IEvidenciaStorage storage, ILogger<InspeccionesController> logger, IMotivoCambio? motivoCambio = null)
+        IEvidenciaStorage storage, ILogger<InspeccionesController> logger, IMotivoCambio? motivoCambio = null,
+        INotificadorNovedades? notificador = null)
     {
         _context = context;
         _currentUser = currentUser;
@@ -37,6 +41,7 @@ public class InspeccionesController : ControllerBase
         _storage = storage;
         _logger = logger;
         _motivoCambio = motivoCambio ?? new MotivoCambio();
+        _notificador = notificador;
     }
 
     [HttpGet]
@@ -51,7 +56,7 @@ public class InspeccionesController : ControllerBase
             .Include(i => i.Checklist)
             .AsQueryable();
 
-        if (EsTecnicoSinPrivilegiosDeLecturaGlobal())
+        if (EsInspectorSinLecturaGlobal())
         {
             var idUsuario = _currentUser.IdUsuario;
             query = query.Where(i => i.IdUsuario == idUsuario);
@@ -65,7 +70,7 @@ public class InspeccionesController : ControllerBase
                 (i.Resultado != null && i.Resultado.Contains(search)));
         }
 
-        // Filtro por estado (EnCurso / Cerrada / Anulada) antes de paginar. Sin esto el cliente
+        // Filtro por estado (EnCurso / NovedadesPendientes / Cerrada / Anulada) antes de paginar. Sin esto el cliente
         // filtraba sobre la página ya cargada y podía decir "no hay inspecciones en curso"
         // habiéndolas en otras páginas. Sin filtro se listan todas, también las anuladas: se
         // conservan como evidencia y se distinguen por Estado y por los campos de anulación.
@@ -74,7 +79,7 @@ public class InspeccionesController : ControllerBase
             query = query.Where(i => i.Estado == estado);
         }
 
-        // Consulta histórica de un equipo (SRS §2 y §6, Gestión de Equipos). Un Técnico sigue
+        // Consulta histórica de un equipo (SRS §2 y §6, Gestión de Equipos). Un Operador sigue
         // viendo solo las suyas: el filtro de arriba ya se aplicó.
         if (idEquipo.HasValue)
         {
@@ -103,7 +108,8 @@ public class InspeccionesController : ControllerBase
                 Observaciones = i.Observaciones,
                 TieneFirma = i.FirmaDigital != null && i.FirmaDigital != "",
                 TotalEvidencias = i.Evidencias.Count(e => !e.Retirada),
-                TotalHallazgos = i.Hallazgos.Count,
+                TotalNovedades = i.Novedades.Count,
+                NovedadesPendientes = i.Novedades.Count(n => n.Estado == NovedadEstados.Pendiente),
                 MotivoAnulacion = i.MotivoAnulacion,
                 FechaAnulacion = i.FechaAnulacion,
                 IdUsuarioAnulacion = i.IdUsuarioAnulacion,
@@ -124,7 +130,7 @@ public class InspeccionesController : ControllerBase
 
     // Punto 2: GET /api/inspecciones/mias?estado=
     [HttpGet("mias")]
-    [Authorize(Roles = "Técnico")]
+    [Authorize(Roles = RolesSistema.Inspectores)]
     public async Task<ActionResult<ApiResponse<List<InspeccionDto>>>> GetMisInspecciones([FromQuery] string? estado)
     {
         var usuarioId = _currentUser.IdUsuario;
@@ -138,11 +144,8 @@ public class InspeccionesController : ControllerBase
     {
         try
         {
-            var usuarioId = _currentUser.IdUsuario;
-            var esAdmin = _currentUser.IsInRole("Administrador");
-            var esAuditor = _currentUser.IsInRole("Auditor");
-
-            var respuestas = await _inspeccionService.ObtenerRespuestasAsync(id, usuarioId, esAdmin, esAuditor);
+            var respuestas = await _inspeccionService.ObtenerRespuestasAsync(id, _currentUser.IdUsuario,
+                AccesoInspeccion.LeeTodas(_currentUser));
             return Ok(ApiResponse<List<RespuestaInspeccionDto>>.SuccessResponse(respuestas));
         }
         catch (KeyNotFoundException ex)
@@ -163,7 +166,7 @@ public class InspeccionesController : ControllerBase
             .Include(i => i.Usuario)
             .Include(i => i.Checklist)
             .Include(i => i.Evidencias)
-            .Include(i => i.Hallazgos)
+            .Include(i => i.Novedades)
             .Include(i => i.UsuarioAnulacion)
             .FirstOrDefaultAsync(i => i.IdInspeccion == id);
 
@@ -181,7 +184,7 @@ public class InspeccionesController : ControllerBase
     }
 
     [HttpPost("iniciar")]
-    [Authorize(Roles = "Administrador,Técnico")]
+    [Authorize(Roles = RolesSistema.Inspeccionan)]
     public async Task<ActionResult<ApiResponse<InspeccionEjecucionDto>>> IniciarInspeccion(
         IniciarInspeccionDto iniciarDto)
     {
@@ -269,7 +272,7 @@ public class InspeccionesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<InspeccionDto>>> CreateInspeccion(CreateInspeccionDto createDto)
     {
         // Misma regla que iniciar desde el QR: un equipo desactivado no se inspecciona.
@@ -322,7 +325,7 @@ public class InspeccionesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Administrador,Técnico")]
+    [Authorize(Roles = RolesSistema.Inspeccionan)]
     public async Task<ActionResult<ApiResponse<InspeccionDto>>> UpdateInspeccion(long id, UpdateInspeccionDto updateDto)
     {
         var inspeccion = await _context.Inspecciones
@@ -330,7 +333,7 @@ public class InspeccionesController : ControllerBase
             .Include(i => i.Usuario)
             .Include(i => i.Checklist)
             .Include(i => i.Evidencias)
-            .Include(i => i.Hallazgos)
+            .Include(i => i.Novedades)
             .FirstOrDefaultAsync(i => i.IdInspeccion == id);
 
         if (inspeccion == null)
@@ -375,7 +378,7 @@ public class InspeccionesController : ControllerBase
 
     // Punto 6, 3, 4, 5: Guardar respuestas usando el servicio y devolviendo 409 Conflict si está cerrada
     [HttpPut("{id}/respuestas")]
-    [Authorize(Roles = "Administrador,Técnico")]
+    [Authorize(Roles = RolesSistema.Inspeccionan)]
     public async Task<ActionResult<ApiResponse<InspeccionEjecucionDto>>> GuardarRespuestas(
         long id,
         [FromBody] GuardarRespuestasDto dto)
@@ -383,7 +386,7 @@ public class InspeccionesController : ControllerBase
         try
         {
             var usuarioId = _currentUser.IdUsuario;
-            var esAdmin = _currentUser.IsInRole("Administrador");
+            var esAdmin = _currentUser.IsInRole(RolesSistema.Administrador);
 
             await _inspeccionService.GuardarRespuestasAsync(id, dto, usuarioId, esAdmin);
 
@@ -410,17 +413,57 @@ public class InspeccionesController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// PUT api/inspecciones/{id}/sede (29/10/2026): la sede de la inspección, Rionegro o Medellín. Se elige en
+    /// el formulario mientras está en curso y es obligatoria para firmar. Mismas reglas que las respuestas:
+    /// quien la ejecuta o el Administrador, y solo en curso.
+    /// </summary>
+    [HttpPut("{id:long}/sede")]
+    [Authorize(Roles = RolesSistema.Inspeccionan)]
+    public async Task<ActionResult<ApiResponse<InspeccionEjecucionDto>>> CambiarSede(long id, [FromBody] SedeDto dto)
+    {
+        var inspeccion = await _context.Inspecciones.FirstOrDefaultAsync(i => i.IdInspeccion == id);
+        if (inspeccion == null)
+        {
+            return NotFound(ApiResponse<InspeccionEjecucionDto>.ErrorResponse("Inspección no encontrada"));
+        }
+
+        if (!PuedeModificar(inspeccion))
+        {
+            return Forbid();
+        }
+
+        if (InmutabilidadInspeccion.MensajeSiNoAdmiteCambios(inspeccion.Estado) is { } noAdmite)
+        {
+            return Conflict(ApiResponse<InspeccionEjecucionDto>.ErrorResponse(noAdmite));
+        }
+
+        if (Sedes.Normalizar(dto.Sede) is not { } sede)
+        {
+            return BadRequest(ApiResponse<InspeccionEjecucionDto>.ErrorResponse(MensajeSedeInvalida));
+        }
+
+        inspeccion.Sede = sede;
+        await _context.SaveChangesAsync();
+
+        return Ok(ApiResponse<InspeccionEjecucionDto>.SuccessResponse(
+            MapToEjecucionDto((await CargarEjecucionAsync(id))!), "Sede guardada"));
+    }
+
+    public static readonly string MensajeSedeInvalida = $"La sede debe ser {string.Join(" o ", Sedes.Todas)}";
+    public static readonly string MensajeSedeRequerida = $"Falta la sede de la inspección ({string.Join(" o ", Sedes.Todas)})";
+
     public const string MensajeMotivoRequerido = "El motivo es requerido y debe tener entre 10 y 500 caracteres";
 
     /// <summary>
     /// POST api/inspecciones/{id}/anular (§3.6): sustituye al borrado. Solo una inspección
-    /// EnCurso; la anula el Administrador o el Técnico que la ejecuta, siempre con motivo. Se
-    /// conservan sus respuestas, evidencias, fotos y hallazgos, y queda inmutable. Estado,
+    /// EnCurso y solo la anula el Administrador (pedido del 22/10/2026; antes también su inspector),
+    /// siempre con motivo. Se conservan sus respuestas, evidencias y fotos, y queda inmutable. Estado,
     /// motivo, fecha, usuario y la fila "Anular" de la auditoría se guardan en una transacción.
     /// Orden: 404, 409 (no está en curso), 403, 400 (motivo).
     /// </summary>
     [HttpPost("{id:long}/anular")]
-    [Authorize(Roles = "Administrador,Técnico")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<InspeccionDto>>> AnularInspeccion(long id, MotivoDto motivoDto)
     {
         var inspeccion = await _context.Inspecciones.FirstOrDefaultAsync(i => i.IdInspeccion == id);
@@ -436,7 +479,8 @@ public class InspeccionesController : ControllerBase
                 : "Una inspección cerrada y firmada no se puede anular"));
         }
 
-        if (!PuedeModificar(inspeccion))
+        // El [Authorize] ya lo exige; se repite por quien llame al controlador sin pasar por él.
+        if (!_currentUser.IsInRole(RolesSistema.Administrador))
         {
             return Forbid();
         }
@@ -473,7 +517,7 @@ public class InspeccionesController : ControllerBase
             .Include(i => i.Usuario)
             .Include(i => i.Checklist)
             .Include(i => i.Evidencias)
-            .Include(i => i.Hallazgos)
+            .Include(i => i.Novedades)
             .Include(i => i.UsuarioAnulacion)
             .SingleAsync(i => i.IdInspeccion == id);
 
@@ -482,11 +526,14 @@ public class InspeccionesController : ControllerBase
 
     /// <summary>
     /// Firma y cierra la inspección: son la misma acción, no existe cerrada sin firma.
-    /// Valida obligatorias (regla 3 del SRS), novedad→observación (regla 4), y la firma PNG;
-    /// después calcula Resultado y FirmaHash y deja la inspección inmutable (regla 6).
+    /// Valida la sede, las obligatorias (regla 3 del SRS), novedad→observación (regla 4) y la firma PNG;
+    /// después calcula Resultado y FirmaHash y deja la inspección inmutable (regla 6). Con
+    /// novedades queda NovedadesPendientes y con resultado "Pendiente": se crea una novedad por cada
+    /// «¿Presenta novedad?» = Sí, se avisa a la mesa de ayuda con un solo correo con todas ellas y pasa sola a Cerrada al
+    /// resolverse la última.
     /// </summary>
     [HttpPost("{id}/firmar")]
-    [Authorize(Roles = "Administrador,Técnico")]
+    [Authorize(Roles = RolesSistema.Inspeccionan)]
     public async Task<ActionResult<ApiResponse<InspeccionResultadoDto>>> FirmarInspeccion(
         long id,
         FirmarInspeccionDto firmarDto,
@@ -543,12 +590,15 @@ public class InspeccionesController : ControllerBase
             return StatusCode(StatusCodes.Status423Locked, ApiResponse<InspeccionResultadoDto>.ErrorResponse(ex.Message));
         }
 
+        RegistrarNoEnLasSinMarcar(inspeccion);
+
         var fechaCierre = DateTime.UtcNow;
-        inspeccion.Estado = InspeccionEstados.Cerrada;
+        var conNovedades = TieneNovedades(inspeccion);
+        inspeccion.Estado = conNovedades ? InspeccionEstados.NovedadesPendientes : InspeccionEstados.Cerrada;
         inspeccion.FechaCierre = fechaCierre;
-        inspeccion.Resultado = TieneNovedades(inspeccion)
-            ? InspeccionResultados.ConNovedad
-            : InspeccionResultados.Conforme;
+        // Sin novedades, Satisfactorio. Con novedades, Pendiente hasta resolverse la última, y entonces
+        // Conforme (NovedadesController).
+        inspeccion.Resultado = conNovedades ? InspeccionResultados.Pendiente : InspeccionResultados.Satisfactorio;
 
         if (!string.IsNullOrWhiteSpace(firmarDto.Observaciones))
         {
@@ -558,14 +608,15 @@ public class InspeccionesController : ControllerBase
         inspeccion.FirmaDigital = firmaPng;
         inspeccion.FirmaNombre = inspeccion.Usuario.Nombre;
         inspeccion.FirmaSignificado = VerificadorIntegridad.SignificadoEjecucion;
-        inspeccion.FirmaAlgoritmo = VerificadorIntegridad.AlgoritmoHmac;
+        inspeccion.FirmaAlgoritmo = VerificadorIntegridad.AlgoritmoHmacV3;
         inspeccion.FirmaHash = await verificador.CalcularSelloAsync(inspeccion);
 
-        await AgregarHallazgosDeNovedadesAsync(inspeccion, fechaCierre);
+        var novedades = AgregarNovedades(inspeccion, fechaCierre);
 
-        // Un único SaveChanges: estado, resultado, firma, hash y hallazgos se guardan en la misma
+        // Un único SaveChanges: estado, resultado, firma, hash y novedades se guardan en la misma
         // transacción, de modo que no puede quedar una inspección cerrada a medias ni una
-        // novedad sin su hallazgo. Si falla cualquiera de ellos, la firma entera se revierte.
+        // respuesta con «¿Presenta novedad?» = Sí sin su novedad. Si falla cualquiera de ellos, la firma
+        // entera se revierte.
         try
         {
             await _context.SaveChangesAsync();
@@ -573,7 +624,7 @@ public class InspeccionesController : ControllerBase
         catch (DbUpdateException)
         {
             // Otra petición firmó o anuló la inspección entre la comprobación y el guardado: el
-            // RowVersion (o, con novedades, el índice único de hallazgos) rechazó esta y la
+            // RowVersion (o, con novedades, el índice único de novedades) rechazó esta y la
             // transacción entera se revirtió. Se responde como a cualquier escritura sobre una
             // cerrada o anulada; otro fallo sigue su curso.
             if (MensajeSegunEstadoActual(await _context.ObtenerEstadoEscrituraAsync(id)) is not { } mensaje)
@@ -584,9 +635,19 @@ public class InspeccionesController : ControllerBase
             return Conflict(ApiResponse<InspeccionResultadoDto>.ErrorResponse(mensaje));
         }
 
+        // El correo sale después de confirmar la firma y no la detiene si falla. Uno solo por
+        // inspección, con todas sus novedades.
+        if (novedades.Count > 0)
+        {
+            _notificador?.Encolar(inspeccion.IdInspeccion);
+        }
+
         return Ok(ApiResponse<InspeccionResultadoDto>.SuccessResponse(
             MapToResultadoDto(inspeccion),
-            "Inspección firmada y cerrada exitosamente"));
+            novedades.Count == 0
+                ? "Inspección firmada y cerrada exitosamente"
+                : $"Inspección firmada. {Plurales.Palabra(novedades.Count, "Queda", "Quedan")} " +
+                  $"{Plurales.Cantidad(novedades.Count, "novedad", "novedades")} por resolver; se avisará por correo a la mesa de ayuda"));
     }
 
     /// <summary>
@@ -607,7 +668,7 @@ public class InspeccionesController : ControllerBase
             return Forbid();
         }
 
-        if (!EstaCerrada(inspeccion))
+        if (!EstaFirmada(inspeccion))
         {
             return Conflict(ApiResponse<bool>.ErrorResponse("Solo las inspecciones firmadas tienen registro PDF"));
         }
@@ -637,11 +698,11 @@ public class InspeccionesController : ControllerBase
 
     /// <summary>
     /// Endpoint 13 (Parte 11 §11.70): recalcula la huella con el algoritmo con que se firmó y la
-    /// compara con la guardada. Solo Administrador y Auditor (§3.4). Cada verificación queda en la
+    /// compara con la guardada. Solo Administrador y Supervisor (§3.4). Cada verificación queda en la
     /// auditoría.
     /// </summary>
     [HttpGet("{id}/integridad")]
-    [Authorize(Roles = "Administrador,Auditor")]
+    [Authorize(Roles = RolesSistema.Supervisan)]
     public async Task<ActionResult<ApiResponse<IntegridadInspeccionDto>>> VerificarIntegridad(
         long id,
         [FromServices] VerificadorIntegridad verificador)
@@ -652,7 +713,7 @@ public class InspeccionesController : ControllerBase
             return NotFound(ApiResponse<IntegridadInspeccionDto>.ErrorResponse("Inspección no encontrada"));
         }
 
-        if (!EstaCerrada(inspeccion))
+        if (!EstaFirmada(inspeccion))
         {
             return Conflict(ApiResponse<IntegridadInspeccionDto>.ErrorResponse(
                 "Solo se verifica una inspección firmada"));
@@ -689,7 +750,7 @@ public class InspeccionesController : ControllerBase
             return Forbid();
         }
 
-        if (!EstaCerrada(inspeccion))
+        if (!EstaFirmada(inspeccion))
         {
             return Conflict(ApiResponse<InspeccionResultadoDto>.ErrorResponse(inspeccion.Estado == InspeccionEstados.Anulada
                 ? "La inspección está anulada y no tiene resultado firmado; consúltela en /api/inspecciones/{id}/ejecucion"
@@ -712,8 +773,8 @@ public class InspeccionesController : ControllerBase
         _ => null
     };
 
-    private static bool EstaCerrada(Inspeccion inspeccion) =>
-        inspeccion.Estado == InspeccionEstados.Cerrada;
+    /// <summary>Firmada: Cerrada o con novedades pendientes. Las dos tienen resultado, registro PDF y sello.</summary>
+    private static bool EstaFirmada(Inspeccion inspeccion) => InspeccionEstados.EstaFirmada(inspeccion.Estado);
 
     /// <summary>
     /// Comprueba las reglas 3 y 4 del SRS y devuelve todos los incumplimientos de una vez,
@@ -734,6 +795,12 @@ public class InspeccionesController : ControllerBase
             faltantes.Add(MensajeChecklistSinPreguntas);
         }
 
+        // Toda inspección dice en qué sede se hizo (29/10/2026).
+        if (Sedes.Normalizar(inspeccion.Sede) == null)
+        {
+            faltantes.Add(MensajeSedeRequerida);
+        }
+
         foreach (var pregunta in inspeccion.Checklist.Preguntas
             .OrderBy(pregunta => pregunta.Orden)
             .ThenBy(pregunta => pregunta.IdPregunta))
@@ -741,15 +808,17 @@ public class InspeccionesController : ControllerBase
             respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta);
             var sinResponder = respuesta == null || string.IsNullOrWhiteSpace(respuesta.Respuesta);
 
-            if (pregunta.Obligatoria && sinResponder)
+            // Una Sí/No se responde con «¿Presenta novedad?» (04/11/2026), que sin marcar queda en «No» al firmar:
+            // solo una de texto obligatoria puede quedar sin responder.
+            if (pregunta.Obligatoria && TiposRespuesta.PideRespuesta(pregunta.TipoRespuesta) && sinResponder)
             {
                 faltantes.Add($"La pregunta obligatoria «{pregunta.Pregunta}» no tiene respuesta");
                 continue;
             }
 
-            if (!sinResponder
-                && EsNovedad(pregunta.TipoRespuesta, respuesta!.Respuesta)
-                && string.IsNullOrWhiteSpace(respuesta.Observacion))
+            // Una novedad («¿Presenta novedad?» = Sí) exige la observación (regla 4 del SRS), también en
+            // una pregunta opcional sin responder.
+            if (respuesta?.PresentaNovedad == true && string.IsNullOrWhiteSpace(respuesta.Observacion))
             {
                 faltantes.Add($"La novedad de «{pregunta.Pregunta}» requiere una observación");
             }
@@ -758,58 +827,79 @@ public class InspeccionesController : ControllerBase
         return faltantes;
     }
 
+    /// <summary>
+    /// «¿Presenta novedad?» empieza en «No» y la pantalla solo guarda lo que se toca (04/11/2026): al firmar, cada
+    /// pregunta Sí/No sin marcar queda en «No» de forma explícita, con su fila si no la tenía, para que el registro
+    /// firmado diga Sí o No en todas. Se hace antes del sello, que cubre las respuestas por pregunta.
+    /// </summary>
+    private static void RegistrarNoEnLasSinMarcar(Inspeccion inspeccion)
+    {
+        var respuestasPorPregunta = inspeccion.Respuestas.ToDictionary(respuesta => respuesta.IdPregunta);
+        foreach (var pregunta in inspeccion.Checklist.Preguntas.Where(p => !TiposRespuesta.PideRespuesta(p.TipoRespuesta)))
+        {
+            if (!respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta))
+            {
+                inspeccion.Respuestas.Add(new RespuestaInspeccion
+                {
+                    IdInspeccion = inspeccion.IdInspeccion,
+                    IdPregunta = pregunta.IdPregunta,
+                    PresentaNovedad = false
+                });
+            }
+            else if (respuesta.PresentaNovedad == null)
+            {
+                respuesta.PresentaNovedad = false;
+            }
+        }
+    }
+
     private static bool TieneNovedades(Inspeccion inspeccion)
     {
-        var tipoPorPregunta = inspeccion.Checklist.Preguntas
-            .ToDictionary(pregunta => pregunta.IdPregunta, pregunta => pregunta.TipoRespuesta);
-
+        var preguntas = inspeccion.Checklist.Preguntas.Select(pregunta => pregunta.IdPregunta).ToHashSet();
         return inspeccion.Respuestas.Any(respuesta =>
-            tipoPorPregunta.TryGetValue(respuesta.IdPregunta, out var tipo)
-            && EsNovedad(tipo, respuesta.Respuesta));
+            respuesta.PresentaNovedad == true && preguntas.Contains(respuesta.IdPregunta));
     }
 
     /// <summary>
-    /// Un hallazgo Abierto por cada respuesta "No" (regla 4 del SRS), a nombre del inspector que
-    /// firma y con la criticidad del equipo. Solo los agrega al contexto: se guardan en el mismo
-    /// SaveChanges que la firma. Una pregunta que ya tenga su hallazgo en esta inspección se
-    /// salta, así que repetir la firma no duplica nada.
+    /// Una novedad Pendiente por cada «¿Presenta novedad?» = Sí (regla 4 del SRS; hasta el 29/10/2026, por
+    /// cada respuesta «No»), a nombre del inspector que
+    /// firma y con la criticidad del equipo. Solo las agrega al contexto: se guardan en el mismo
+    /// SaveChanges que la firma. Una pregunta que ya tenga su novedad en esta inspección se salta,
+    /// así que repetir la firma no duplica nada.
     /// </summary>
-    private async Task AgregarHallazgosDeNovedadesAsync(Inspeccion inspeccion, DateTime fechaCierre)
+    private List<Novedad> AgregarNovedades(Inspeccion inspeccion, DateTime fechaCierre)
     {
         var preguntas = inspeccion.Checklist.Preguntas.ToDictionary(pregunta => pregunta.IdPregunta);
-        var yaRegistradas = await _context.Hallazgos
-            .Where(h => h.IdInspeccion == inspeccion.IdInspeccion && h.IdPregunta != null)
-            .Select(h => h.IdPregunta!.Value)
-            .ToListAsync();
+        var yaRegistradas = inspeccion.Novedades.Select(novedad => novedad.IdPregunta).ToHashSet();
+        var nuevas = new List<Novedad>();
 
         foreach (var respuesta in inspeccion.Respuestas.OrderBy(respuesta => respuesta.IdPregunta))
         {
             if (!preguntas.TryGetValue(respuesta.IdPregunta, out var pregunta)
-                || !EsNovedad(pregunta.TipoRespuesta, respuesta.Respuesta)
+                || respuesta.PresentaNovedad != true
                 || yaRegistradas.Contains(pregunta.IdPregunta))
             {
                 continue;
             }
 
-            _context.Hallazgos.Add(new Hallazgo
+            var novedad = new Novedad
             {
                 IdInspeccion = inspeccion.IdInspeccion,
                 IdPregunta = pregunta.IdPregunta,
                 IdRespuesta = respuesta.IdRespuesta,
                 Descripcion = $"{pregunta.Pregunta}: {respuesta.Observacion!.Trim()}",
                 Criticidad = inspeccion.Equipo.Criticidad,
-                Estado = HallazgoEstados.Abierto,
-                Origen = HallazgoOrigenes.Novedad,
+                Estado = NovedadEstados.Pendiente,
                 FechaRegistro = fechaCierre,
                 IdUsuarioRegistro = inspeccion.IdUsuario
-            });
+            };
+            _context.Novedades.Add(novedad);
+            nuevas.Add(novedad);
         }
+
+        return nuevas;
     }
 
-    /// <summary>Una respuesta Sí/No marcada como "No" es una novedad (regla 4 del SRS).</summary>
-    private static bool EsNovedad(string? tipoRespuesta, string? respuesta) =>
-        tipoRespuesta == TiposRespuesta.SiNo
-        && string.Equals(respuesta, "No", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Carga todo lo que interviene en el cierre. Con <paramref name="seguimiento"/> en true
@@ -832,6 +922,7 @@ public class InspeccionesController : ControllerBase
             .Include(i => i.Respuestas)
             .Include(i => i.Evidencias)
                 .ThenInclude(e => e.UsuarioCargaDetalle)
+            .Include(i => i.Novedades)
             .FirstOrDefaultAsync(i => i.IdInspeccion == id);
     }
 
@@ -855,7 +946,8 @@ public class InspeccionesController : ControllerBase
                     Orden = pregunta.Orden,
                     IdRespuesta = respuesta?.IdRespuesta,
                     Respuesta = respuesta?.Respuesta,
-                    Observacion = respuesta?.Observacion
+                    Observacion = respuesta?.Observacion,
+                    PresentaNovedad = ReglaNovedad.Presenta(inspeccion, pregunta, respuesta)
                 };
             })
             .ToList();
@@ -868,6 +960,7 @@ public class InspeccionesController : ControllerBase
             FechaInspeccion = inspeccion.FechaInspeccion,
             FechaCierre = inspeccion.FechaCierre,
             Observaciones = inspeccion.Observaciones,
+            Sede = inspeccion.Sede,
             IdEquipo = inspeccion.IdEquipo,
             CodigoInterno = inspeccion.Equipo.CodigoInterno,
             NombreEquipo = inspeccion.Equipo.NombreEquipo,
@@ -879,6 +972,7 @@ public class InspeccionesController : ControllerBase
             NombreUsuario = inspeccion.Usuario.Nombre,
             Preguntas = preguntas,
             TotalNovedades = preguntas.Count(pregunta => pregunta.EsNovedad),
+            NovedadesPendientes = inspeccion.Novedades.Count(novedad => novedad.Estado == NovedadEstados.Pendiente),
             Evidencias = inspeccion.Evidencias
                 .Where(evidencia => !evidencia.Retirada)
                 .OrderBy(evidencia => evidencia.FechaCarga)
@@ -894,6 +988,7 @@ public class InspeccionesController : ControllerBase
                     FechaCarga = evidencia.FechaCarga,
                     IdUsuarioCarga = evidencia.IdUsuarioCarga,
                     UsuarioCarga = evidencia.UsuarioCargaDetalle.Nombre,
+                    IdUsuarioInspeccion = inspeccion.IdUsuario,
                     EstadoInspeccion = inspeccion.Estado
                 })
                 .ToList(),
@@ -918,19 +1013,19 @@ public class InspeccionesController : ControllerBase
             .ThenInclude(e => e.UsuarioCargaDetalle)
         .FirstOrDefaultAsync(i => i.IdInspeccion == id);
 
-    private bool EsTecnicoSinPrivilegiosDeLecturaGlobal() =>
-        _currentUser.IsInRole("Técnico")
-        && !_currentUser.IsInRole("Administrador")
-        && !_currentUser.IsInRole("Auditor");
+    /// <summary>El Operador: su listado son sus inspecciones.</summary>
+    private bool EsInspectorSinLecturaGlobal() => !AccesoInspeccion.LeeTodas(_currentUser);
 
-    private bool PuedeLeer(Inspeccion inspeccion) =>
-        _currentUser.IsInRole("Administrador")
-        || _currentUser.IsInRole("Auditor")
-        || (_currentUser.IsInRole("Técnico") && inspeccion.IdUsuario == _currentUser.IdUsuario);
+    /// <summary>
+    /// Administrador, Supervisor y Estándar, cualquiera, en solo lectura; el Operador, las suyas
+    /// (<see cref="AccesoInspeccion"/>).
+    /// </summary>
+    private bool PuedeLeer(Inspeccion inspeccion) => AccesoInspeccion.PuedeLeer(_currentUser, inspeccion.IdUsuario);
 
     private bool PuedeModificar(Inspeccion inspeccion) =>
-        _currentUser.IsInRole("Administrador")
-        || (_currentUser.IsInRole("Técnico") && inspeccion.IdUsuario == _currentUser.IdUsuario);
+        _currentUser.IsInRole(RolesSistema.Administrador)
+        || ((_currentUser.IsInRole(RolesSistema.Operador) || _currentUser.IsInRole(RolesSistema.Estandar))
+            && inspeccion.IdUsuario == _currentUser.IdUsuario);
 
     private static InspeccionEjecucionDto MapToEjecucionDto(Inspeccion inspeccion)
     {
@@ -938,14 +1033,16 @@ public class InspeccionesController : ControllerBase
             .ToDictionary(respuesta => respuesta.IdPregunta);
 
         var preguntasChecklist = inspeccion.Checklist.Preguntas.ToList();
-        var obligatorias = preguntasChecklist.Where(pregunta => pregunta.Obligatoria).ToList();
+        // Solo las de texto piden respuesta (04/11/2026): una Sí/No se responde con «¿Presenta novedad?».
+        var obligatorias = preguntasChecklist
+            .Where(pregunta => pregunta.Obligatoria && TiposRespuesta.PideRespuesta(pregunta.TipoRespuesta))
+            .ToList();
         var obligatoriasRespondidas = obligatorias.Count(pregunta =>
             respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta)
             && !string.IsNullOrWhiteSpace(respuesta.Respuesta));
         var novedades = preguntasChecklist.Count(pregunta =>
-            pregunta.TipoRespuesta == TiposRespuesta.SiNo
-            && respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta)
-            && string.Equals(respuesta.Respuesta, "No", StringComparison.OrdinalIgnoreCase));
+            respuestasPorPregunta.TryGetValue(pregunta.IdPregunta, out var respuesta)
+            && ReglaNovedad.Presenta(inspeccion, pregunta, respuesta) == true);
 
         return new InspeccionEjecucionDto
         {
@@ -965,6 +1062,7 @@ public class InspeccionesController : ControllerBase
             VersionChecklist = inspeccion.Checklist.Version,
             IdUsuario = inspeccion.IdUsuario,
             NombreUsuario = inspeccion.Usuario.Nombre,
+            Sede = inspeccion.Sede,
             FechaInspeccion = inspeccion.FechaInspeccion,
             Estado = inspeccion.Estado,
             Preguntas = inspeccion.Checklist.Preguntas
@@ -982,7 +1080,8 @@ public class InspeccionesController : ControllerBase
                         Orden = pregunta.Orden,
                         IdRespuesta = respuesta?.IdRespuesta,
                         Respuesta = respuesta?.Respuesta,
-                        Observacion = respuesta?.Observacion
+                        Observacion = respuesta?.Observacion,
+                        PresentaNovedad = ReglaNovedad.Presenta(inspeccion, pregunta, respuesta)
                     };
                 })
                 .ToList(),
@@ -1001,6 +1100,7 @@ public class InspeccionesController : ControllerBase
                     FechaCarga = evidencia.FechaCarga,
                     IdUsuarioCarga = evidencia.IdUsuarioCarga,
                     UsuarioCarga = evidencia.UsuarioCargaDetalle.Nombre,
+                    IdUsuarioInspeccion = inspeccion.IdUsuario,
                     EstadoInspeccion = inspeccion.Estado
                 })
                 .ToList()
@@ -1025,7 +1125,8 @@ public class InspeccionesController : ControllerBase
             Observaciones = i.Observaciones,
             TieneFirma = !string.IsNullOrEmpty(i.FirmaDigital),
             TotalEvidencias = i.Evidencias?.Count(e => !e.Retirada) ?? 0,
-            TotalHallazgos = i.Hallazgos?.Count ?? 0,
+            TotalNovedades = i.Novedades?.Count ?? 0,
+            NovedadesPendientes = i.Novedades?.Count(n => n.Estado == NovedadEstados.Pendiente) ?? 0,
             MotivoAnulacion = i.MotivoAnulacion,
             FechaAnulacion = i.FechaAnulacion,
             IdUsuarioAnulacion = i.IdUsuarioAnulacion,

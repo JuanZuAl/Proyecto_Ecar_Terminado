@@ -2,7 +2,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }">
+<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }" Class="form-enter form-compacto">
     <TitleContent>
         <MudText Typo="Typo.h6">@(IsEditMode ? "Editar Ubicación" : "Crear Nueva Ubicación")</MudText>
     </TitleContent>
@@ -23,7 +23,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="dialog-button cancel-btn">Cancelar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button">Guardar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button enter-guardar">Guardar</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -125,20 +125,20 @@
 }
 
 .dialog-button.mud-button-filled {
-    background-color: #397FDE !important;
+    background-color: var(--primary) !important;
     color: white !important;
 }
 
 .dialog-button.mud-button-filled:hover {
-    background-color: #2A5FB8 !important;
+    background-color: var(--primary-dark) !important;
 }
 
 .cancel-btn {
-    background-color: #79B75D !important;
+    background-color: var(--secondary) !important;
     color: white !important;
 }
 
 .cancel-btn:hover {
-    background-color: #68A552 !important;
+    background-color: var(--secondary-dark) !important;
 }
 </style>

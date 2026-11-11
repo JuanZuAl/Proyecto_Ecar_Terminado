@@ -131,6 +131,41 @@ public class BackendPhaseTwoTests
     }
 
     [Fact]
+    public async Task CrearUnEquipoLeGeneraElQrAlGuardarlo()
+    {
+        await using var context = CreateContext();
+        var controller = CreateEquiposController(context);
+
+        var result = await controller.CreateEquipo(new CreateEquipoDto
+        {
+            CodigoInterno = "EQ-QR", ActivoFijo = "AF-QR", NombreEquipo = "Horno", Criticidad = Criticidades.Media
+        });
+
+        var creado = Assert.IsType<ApiResponse<EquipoDto>>(Assert.IsType<CreatedAtActionResult>(result.Result).Value).Data!;
+        Assert.Matches("^[0-9a-f]{32}$", creado.QRCode);
+        var qr = Data(await controller.GenerateQr(creado.IdEquipo));
+        Assert.False(qr.EsNuevo); // el diálogo del QR muestra el mismo, no crea otro
+        Assert.Equal(creado.QRCode, qr.Token);
+        Assert.IsType<FileContentResult>(await controller.GetQrImage(creado.IdEquipo));
+    }
+
+    [Fact]
+    public async Task EditarUnEquipoSinQrLeGeneraUnoYNoCambiaElQueYaTiene()
+    {
+        await using var context = CreateContext();
+        var equipo = await SeedEquipoAsync(context); // como los creados antes del cambio: sin QR
+        var controller = CreateEquiposController(context);
+        var cambio = new UpdateEquipoDto { Marca = "Mettler", Motivo = "Se corrige la marca del equipo" };
+
+        Assert.IsType<OkObjectResult>((await controller.UpdateEquipo(equipo.IdEquipo, cambio)).Result);
+        var token = equipo.QRCode;
+        Assert.IsType<OkObjectResult>((await controller.UpdateEquipo(equipo.IdEquipo, cambio)).Result);
+
+        Assert.Matches("^[0-9a-f]{32}$", token);
+        Assert.Equal(token, equipo.QRCode); // las etiquetas impresas siguen sirviendo
+    }
+
+    [Fact]
     public async Task ConsultaPublicaPorQrDevuelveFichaYChecklistsActivos()
     {
         await using var context = CreateContext();
@@ -148,7 +183,8 @@ public class BackendPhaseTwoTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var consulta = Assert.IsType<ApiResponse<ConsultaQrDto>>(ok.Value).Data!;
         Assert.Equal(equipo.CodigoInterno, consulta.Equipo.CodigoInterno);
-        Assert.Null(consulta.Equipo.QRCode); // el token no se expone en la respuesta pública
+        var json = System.Text.Json.JsonSerializer.Serialize(consulta);
+        Assert.DoesNotContain(token, json); // el token no se expone en la respuesta pública
         Assert.Single(consulta.ChecklistsActivos);
         Assert.Equal(activo.IdChecklist, consulta.ChecklistsActivos[0].IdChecklist);
     }
@@ -225,7 +261,7 @@ public class BackendPhaseTwoTests
     private static async Task SeedRespuestaAsync(ECARDbContext context, Checklist checklist)
     {
         var equipo = await SeedEquipoAsync(context);
-        var usuario = new Usuario { Nombre = "Técnico", Correo = "tecnico@ecar.com", PasswordHash = "hash", Activo = true };
+        var usuario = new Usuario { Nombre = "Operador", Correo = "tecnico@ecar.com", PasswordHash = "hash", Activo = true };
         context.Usuarios.Add(usuario);
         await context.SaveChangesAsync();
 

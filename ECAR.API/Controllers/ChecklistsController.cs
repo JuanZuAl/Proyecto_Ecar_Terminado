@@ -11,7 +11,7 @@ namespace ECAR.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Administrador,Técnico,Auditor")]
+[Authorize(Roles = RolesSistema.Todos)]
 public class ChecklistsController : ControllerBase
 {
     private readonly ECARDbContext _context;
@@ -95,13 +95,19 @@ public class ChecklistsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<ChecklistDto>>> CreateChecklist(CreateChecklistDto createDto)
     {
         var tipoInvalido = GetInvalidTipoRespuesta(createDto.Preguntas);
         if (tipoInvalido != null)
         {
             return BadRequest(ApiResponse<ChecklistDto>.ErrorResponse(tipoInvalido));
+        }
+
+        createDto.Nombre = createDto.Nombre.Trim();
+        if (await ExisteActivoConNombreAsync(createDto.Nombre))
+        {
+            return Conflict(ApiResponse<ChecklistDto>.ErrorResponse(NombreRepetido(createDto.Nombre)));
         }
 
         var existente = await _context.Checklists
@@ -137,7 +143,7 @@ public class ChecklistsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<ChecklistDto>>> UpdateChecklist(long id, UpdateChecklistDto updateDto)
     {
         var checklist = await _context.Checklists
@@ -171,8 +177,16 @@ public class ChecklistsController : ControllerBase
             return BadRequest(ApiResponse<ChecklistDto>.ErrorResponse(tipoInvalido));
         }
 
-        if (!string.IsNullOrEmpty(updateDto.Nombre))
-            checklist.Nombre = updateDto.Nombre;
+        // B-05: solo se valida si el nombre cambia; el formulario lo reenvía en cada edición.
+        var nombre = string.IsNullOrWhiteSpace(updateDto.Nombre) ? null : updateDto.Nombre.Trim();
+        if (nombre != null && NormalizarNombre(nombre) != NormalizarNombre(checklist.Nombre) &&
+            await ExisteActivoConNombreAsync(nombre, excluirId: id))
+        {
+            return Conflict(ApiResponse<ChecklistDto>.ErrorResponse(NombreRepetido(nombre)));
+        }
+
+        if (nombre != null)
+            checklist.Nombre = nombre;
 
         if (!string.IsNullOrEmpty(updateDto.Version))
             checklist.Version = updateDto.Version;
@@ -200,7 +214,7 @@ public class ChecklistsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteChecklist(long id, [FromQuery] string? motivo = null)
     {
         var checklist = await _context.Checklists.FindAsync(id);
@@ -232,7 +246,7 @@ public class ChecklistsController : ControllerBase
     /// consulta por QR ofrecía las dos.
     /// </summary>
     [HttpPut("{id}/activar")]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<bool>>> ActivarChecklist(long id, [FromQuery] string? motivo = null)
     {
         var checklist = await _context.Checklists.FindAsync(id);
@@ -301,7 +315,7 @@ public class ChecklistsController : ControllerBase
 
     // Crea una versión nueva copiando las preguntas de la actual y deja la anterior como histórica
     [HttpPost("{id}/nueva-version")]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<ChecklistDto>>> CreateVersion(long id, CreateChecklistVersionDto createDto)
     {
         var origen = await _context.Checklists
@@ -364,6 +378,26 @@ public class ChecklistsController : ControllerBase
             ApiResponse<ChecklistDto>.SuccessResponse(MapToDto(nueva), $"Versión '{version}' creada exitosamente"));
     }
 
+    /// <summary>
+    /// B-05: no puede haber dos checklists activos con el mismo nombre, sin distinguir mayúsculas,
+    /// minúsculas ni espacios externos. La normalización va en la consulta y no depende de la
+    /// collation de SQL Server (InMemory distingue mayúsculas). Las versiones comparten nombre,
+    /// pero solo una está activa, y «Nueva versión» no pasa por aquí.
+    /// </summary>
+    private Task<bool> ExisteActivoConNombreAsync(string nombre, long? excluirId = null)
+    {
+        var normalizado = NormalizarNombre(nombre);
+        return _context.Checklists.AnyAsync(c =>
+            c.Activo &&
+            (excluirId == null || c.IdChecklist != excluirId) &&
+            c.Nombre.Trim().ToLower() == normalizado);
+    }
+
+    private static string NormalizarNombre(string nombre) => nombre.Trim().ToLower();
+
+    private static string NombreRepetido(string nombre) =>
+        $"Ya existe un checklist activo llamado «{nombre}». Para cambiarlo cree una nueva versión con «Nueva versión»";
+
     private Task<bool> TieneRespuestasAsync(long idChecklist) =>
         _context.RespuestasInspeccion.AnyAsync(r => r.Pregunta.IdChecklist == idChecklist);
 
@@ -384,14 +418,21 @@ public class ChecklistsController : ControllerBase
         }
     }
 
-    /// <summary>Devuelve un mensaje de error cuando una pregunta usa un tipo de respuesta fuera del catálogo.</summary>
+    /// <summary>
+    /// Devuelve un mensaje de error cuando una pregunta no es Sí/No: desde el 29/10/2026 todas lo son
+    /// (<see cref="TiposRespuesta.EsValidoParaGuardar"/>). «Nueva versión» copia las preguntas tal como están.
+    /// </summary>
     private static string? GetInvalidTipoRespuesta(IEnumerable<CreatePreguntaChecklistDto>? preguntas)
     {
-        var invalida = preguntas?.FirstOrDefault(p => !TiposRespuesta.EsValido(p.TipoRespuesta));
+        var invalida = preguntas?.FirstOrDefault(p => !TiposRespuesta.EsValidoParaGuardar(p.TipoRespuesta));
+        if (invalida == null)
+        {
+            return null;
+        }
 
-        return invalida == null
-            ? null
-            : $"El tipo de respuesta '{invalida.TipoRespuesta}' no es válido. Valores permitidos: {TiposRespuesta.ValoresPermitidos}";
+        return TiposRespuesta.EsValido(invalida.TipoRespuesta)
+            ? TiposRespuesta.MensajeSoloSiNo
+            : $"El tipo de respuesta '{invalida.TipoRespuesta}' no es válido. {TiposRespuesta.MensajeSoloSiNo}";
     }
 
     private static ChecklistDto MapToDto(Checklist checklist)

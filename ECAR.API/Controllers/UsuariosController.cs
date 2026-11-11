@@ -15,10 +15,15 @@ namespace ECAR.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Administrador")]
+[Authorize(Roles = RolesSistema.Administrador)]
 public class UsuariosController : ControllerBase
 {
     private readonly ECARDbContext _context;
+    public const string MensajeAlMenosUnRol = "Asigne al menos un rol al usuario";
+
+    public const string MensajeSinCambioPassword =
+        "Las contraseñas no se cambian ni se restablecen en este sistema: las administra la API externa de contraseñas";
+
     private readonly PoliticaPasswords _politica;
     private readonly IMotivoCambio _motivoCambio;
 
@@ -55,7 +60,9 @@ public class UsuariosController : ControllerBase
 
         var totalCount = await query.CountAsync();
 
+        // Paginar sin orden definido deja que el orden varíe entre consultas y repita u omita filas (M-14).
         var usuarios = await query
+            .OrderBy(u => u.IdUsuario)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(u => new UsuarioDto
@@ -67,7 +74,6 @@ public class UsuariosController : ControllerBase
                 Activo = u.Activo,
                 Roles = u.UsuarioRoles.Select(ur => ur.Rol.Nombre).ToList(),
                 BloqueadoHasta = u.BloqueadoHasta,
-                DebeCambiarPassword = u.DebeCambiarPassword,
                 UltimoAcceso = u.UltimoAcceso
             })
             .ToListAsync();
@@ -128,18 +134,21 @@ public class UsuariosController : ControllerBase
             return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse("El usuario de Active Directory ya está registrado"));
         }
 
+        // Sin rol, el usuario entraría y recibiría 403 en todas las pantallas (prueba integral del 08/11/2026).
         var roleIds = (createDto.RoleIds ?? []).Distinct().ToList();
-        if (roleIds.Count > 0)
+        if (roleIds.Count == 0)
         {
-            var existingRoleIds = await _context.Roles
-                .Where(r => roleIds.Contains(r.IdRol))
-                .Select(r => r.IdRol)
-                .ToListAsync();
+            return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse(MensajeAlMenosUnRol));
+        }
 
-            if (existingRoleIds.Count != roleIds.Count)
-            {
-                return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse("Uno o más roles seleccionados no existen"));
-            }
+        var existingRoleIds = await _context.Roles
+            .Where(r => roleIds.Contains(r.IdRol))
+            .Select(r => r.IdRol)
+            .ToListAsync();
+
+        if (existingRoleIds.Count != roleIds.Count)
+        {
+            return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse("Uno o más roles seleccionados no existen"));
         }
 
         var tienePasswordLocal = !string.IsNullOrWhiteSpace(createDto.Password);
@@ -164,9 +173,9 @@ public class UsuariosController : ControllerBase
             UsuarioAD = createDto.UsuarioAD,
             PasswordHash = passwordHash,
             Activo = true,
-            // La contraseña inicial la conoce el Administrador: el usuario la cambia al entrar
-            // (Parte 11 §11.200(a)(3)).
-            DebeCambiarPassword = tienePasswordLocal,
+            // La del alta es la única contraseña que pone este sistema y no es temporal (29/10/2026). Desde el
+            // 03/11/2026 aquí no se cambia ni se restablece: lo hará una API externa.
+            DebeCambiarPassword = false,
             FechaCambioPassword = tienePasswordLocal ? DateTime.UtcNow : null
         };
 
@@ -202,12 +211,11 @@ public class UsuariosController : ControllerBase
             return NotFound(ApiResponse<UsuarioDto>.ErrorResponse("Usuario no encontrado"));
         }
 
-        // Fase 4 (Parte 11 §11.200(a)(3)): el Administrador ya no fija contraseñas ajenas; solo las
-        // restablece con una temporal que el usuario cambia al entrar.
+        // Parte 11 §11.200(a)(3): el Administrador no fija contraseñas ajenas. Desde el 03/11/2026 este sistema
+        // tampoco las cambia ni las restablece: lo hará una API externa.
         if (!string.IsNullOrEmpty(updateDto.Password))
         {
-            return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse(
-                "La contraseña no se edita aquí: use «Restablecer contraseña»"));
+            return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse(MensajeSinCambioPassword));
         }
 
         // Parte 11 §11.100(a): una firma no puede «pasar» a otra persona cambiando la identidad
@@ -228,6 +236,11 @@ public class UsuariosController : ControllerBase
         if (updateDto.RoleIds != null)
         {
             roleIds = updateDto.RoleIds.Distinct().ToList();
+            if (roleIds.Count == 0)
+            {
+                return BadRequest(ApiResponse<UsuarioDto>.ErrorResponse(MensajeAlMenosUnRol));
+            }
+
             var validRoleIds = await _context.Roles
                 .Where(r => roleIds.Contains(r.IdRol))
                 .Select(r => r.IdRol)
@@ -363,7 +376,7 @@ public class UsuariosController : ControllerBase
     /// nada y avisaba de un éxito falso.
     /// </summary>
     [HttpPut("{id}/activar")]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = RolesSistema.Administrador)]
     public async Task<ActionResult<ApiResponse<bool>>> ActivarUsuario(long id, [FromQuery] string? motivo = null)
     {
         var usuario = await _context.Usuarios.FindAsync(id);
@@ -387,47 +400,10 @@ public class UsuariosController : ControllerBase
         return Ok(ApiResponse<bool>.SuccessResponse(true, "Usuario activado exitosamente"));
     }
 
-    [HttpPost("{id}/restablecer-password")]
-    public async Task<ActionResult<ApiResponse<PasswordTemporalDto>>> RestablecerPassword(
-        long id,
-        MotivoDto motivoDto,
-        [FromServices] IMotivoCambio motivoCambio)
-    {
-        var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.IdUsuario == id);
-        if (usuario == null)
-        {
-            return NotFound(ApiResponse<PasswordTemporalDto>.ErrorResponse("Usuario no encontrado"));
-        }
-
-        if (!usuario.Activo)
-        {
-            return BadRequest(ApiResponse<PasswordTemporalDto>.ErrorResponse(
-                "No se puede restablecer la contraseña de un usuario inactivo"));
-        }
-
-        // Una cuenta que solo entra por Active Directory no tiene contraseña local: darle una
-        // temporal le abriría una segunda forma de entrar que el directorio no controla.
-        if (string.IsNullOrWhiteSpace(usuario.PasswordHash) && !string.IsNullOrWhiteSpace(usuario.UsuarioAD))
-        {
-            return BadRequest(ApiResponse<PasswordTemporalDto>.ErrorResponse(
-                "El usuario entra con Active Directory: su contraseña se restablece en el directorio"));
-        }
-
-        var temporal = _politica.GenerarTemporal();
-        _politica.Establecer(_context, usuario, temporal, esTemporal: true);
-        motivoCambio.Establecer(motivoDto.Motivo);
-        _context.RegistrarEvento(AuditoriaAcciones.RestablecerPassword, usuario.IdUsuario,
-            new { Usuario = usuario.Correo, DebeCambiarAlEntrar = true });
-        await _context.SaveChangesAsync();
-
-        Response.Headers.CacheControl = "no-store";
-        Response.Headers.Pragma = "no-cache";
-
-        return Ok(ApiResponse<PasswordTemporalDto>.SuccessResponse(
-            new PasswordTemporalDto { PasswordTemporal = temporal, DebeCambiarAlEntrar = true },
-            "Contraseña restablecida. Entréguela al usuario: no se volverá a mostrar"));
-    }
-
+    /// <summary>
+    /// Quita el bloqueo por intentos fallidos, con motivo (Parte 11 §11.300(d)). Es lo único que queda de la
+    /// gestión de contraseñas: el cambio y el restablecimiento se quitaron el 03/11/2026.
+    /// </summary>
     [HttpPost("{id}/desbloquear")]
     public async Task<ActionResult<ApiResponse<bool>>> DesbloquearUsuario(
         long id,
@@ -462,7 +438,6 @@ public class UsuariosController : ControllerBase
         Activo = usuario.Activo,
         Roles = usuario.UsuarioRoles.Select(ur => ur.Rol.Nombre).ToList(),
         BloqueadoHasta = usuario.BloqueadoHasta,
-        DebeCambiarPassword = usuario.DebeCambiarPassword,
         UltimoAcceso = usuario.UltimoAcceso
     };
 

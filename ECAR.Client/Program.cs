@@ -37,6 +37,10 @@ builder.Services.AddScoped<AuthorizationService>();
 // Configurar MudBlazor con el tema corporativo de ECAR
 builder.Services.AddMudServices();
 
+// Textos de los controles de MudBlazor en español (B-15): páginas anterior/siguiente, flechas de las
+// pestañas, selectores de fecha, errores de conversión, etc.
+builder.Services.AddTransient<MudLocalizer, LocalizadorMud>();
+
 // Configurar el tema corporativo de ECAR
 builder.Services.AddSingleton(new MudTheme()
 {

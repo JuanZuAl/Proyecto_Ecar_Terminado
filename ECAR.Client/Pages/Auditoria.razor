@@ -11,8 +11,8 @@
    de la cadena y la exportación los publica BE-1/BE-2 durante la fase (endpoints 1, 2, 3 y 21);
    hasta entonces el API ignora esos filtros y responde 404 a lo demás, y la pantalla lo dice. *@
 
-<RolRouteGuard Roles="@(new[] { "Administrador", "Auditor" })"
-               MensajeNoAutorizado="Solo administradores y auditores pueden consultar la auditoría.">
+<RolRouteGuard Roles="@(new[] { RolesSistema.Administrador, RolesSistema.Supervisor })"
+               MensajeNoAutorizado="Solo administradores y supervisores pueden consultar la auditoría.">
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudCard>
         <MudCardHeader Class="cabecera-auditoria">
@@ -36,18 +36,20 @@
         </MudCardHeader>
 
         <MudCardContent>
-            @if (verificacion != null)
+            @* Copia local: al cerrar, MudAlert vuelve a pintar su contenido después de que el clic dejó
+               verificacion en null, y leer el campo ahí lanzaba NullReferenceException (Fase 5, F-03). *@
+            @if (verificacion is { } resultado)
             {
-                <MudAlert Severity="@(verificacion.Valida ? Severity.Success : Severity.Error)" Class="mb-4"
+                <MudAlert Severity="@(resultado.Valida ? Severity.Success : Severity.Error)" Class="mb-4"
                     ShowCloseIcon="true" CloseIconClicked="@(() => verificacion = null)">
-                    @if (verificacion.Valida)
+                    @if (resultado.Valida)
                     {
-                        <span>Integridad correcta: @verificacion.FilasRevisadas fila(s) revisadas, ninguna alterada ni borrada.</span>
+                        <span>Integridad correcta: @Texto.Cantidad(resultado.FilasRevisadas, "fila revisada", "filas revisadas"), ninguna alterada ni borrada.</span>
                     }
                     else
                     {
                         <span>
-                            La cadena está rota a partir de la fila #@verificacion.PrimeraFilaRota:
+                            La cadena está rota a partir de la fila #@resultado.PrimeraFilaRota:
                             ese registro o uno anterior fue alterado o borrado fuera del sistema. Avise a Calidad.
                         </span>
                     }
@@ -72,7 +74,7 @@
                     <MudSelect T="string" Label="Acción" @bind-Value="filtro.Accion" Variant="Variant.Outlined" Clearable="true">
                         @foreach (var accion in AuditoriaAcciones.Todas)
                         {
-                            <MudSelectItem T="string" Value="@accion">@accion</MudSelectItem>
+                            <MudSelectItem T="string" Value="@accion">@FormatoAuditoria.NombreAccion(accion)</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -80,14 +82,14 @@
                     <MudNumericField T="long?" Label="Id del registro" @bind-Value="filtro.RegistroId" Variant="Variant.Outlined"
                         Min="1" HideSpinButtons="true" Clearable="true" />
                 </MudItem>
-                <MudItem xs="6" sm="4">
-                    <MudDatePicker Label="Desde" @bind-Date="filtro.Desde" Variant="Variant.Outlined" Editable="true" Clearable="true" />
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="filtro.Desde" Variant="Variant.Outlined" Editable="true" Clearable="true" />
                 </MudItem>
-                <MudItem xs="6" sm="4">
-                    <MudDatePicker Label="Hasta" @bind-Date="filtro.Hasta" Variant="Variant.Outlined" Editable="true" Clearable="true" />
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="filtro.Hasta" Variant="Variant.Outlined" Editable="true" Clearable="true" />
                 </MudItem>
                 <MudItem xs="12" Class="d-flex flex-wrap gap-2 justify-end">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="LimpiarAsync">Limpiar</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="LimpiarAsync">Limpiar</MudButton>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterAlt"
                         OnClick="FiltrarAsync">Filtrar</MudButton>
                 </MudItem>
@@ -99,7 +101,7 @@
             }
             else if (registros.Count > 0)
             {
-                <MudTable Items="registros" Hover="true" Striped="true" Elevation="0" Dense="true">
+                <MudTable Items="registros" Hover="true" Striped="true" Elevation="0" Dense="true" Breakpoint="Breakpoint.Md">
                     <HeaderContent>
                         <MudTh>Fecha y hora</MudTh>
                         <MudTh>Tabla</MudTh>
@@ -107,7 +109,7 @@
                         <MudTh>Acción</MudTh>
                         <MudTh>Usuario</MudTh>
                         <MudTh>Motivo</MudTh>
-                        <MudTh></MudTh>
+                        <MudTh Class="col-acciones"></MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd DataLabel="Fecha y hora" Style="white-space: nowrap;">@FormatoAuditoria.FechaHora(context.FechaHora)</MudTd>
@@ -115,13 +117,13 @@
                         <MudTd DataLabel="Registro">@context.RegistroId</MudTd>
                         <MudTd DataLabel="Acción">
                             <MudChip T="string" Color="@FormatoAuditoria.ColorAccion(context.Accion)" Size="Size.Small"
-                                Variant="Variant.Outlined" Text="@context.Accion" />
+                                Variant="Variant.Outlined" Text="@FormatoAuditoria.NombreAccion(context.Accion)" />
                         </MudTd>
                         <MudTd DataLabel="Usuario">@context.Usuario</MudTd>
                         <MudTd DataLabel="Motivo">
                             <span class="motivo-corto" title="@context.Motivo">@(string.IsNullOrWhiteSpace(context.Motivo) ? "—" : context.Motivo)</span>
                         </MudTd>
-                        <MudTd DataLabel="">
+                        <MudTd DataLabel="" Class="col-acciones">
                             <MudButton Size="Size.Small" Color="Color.Info" Variant="Variant.Filled"
                                 StartIcon="@Icons.Material.Filled.Visibility" OnClick="() => VerDetalleAsync(context)">
                                 Ver
@@ -131,7 +133,7 @@
                 </MudTable>
 
                 <div class="d-flex flex-wrap align-center justify-space-between mt-4 gap-2">
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@totalRegistros registro(s)</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@Texto.Cantidad(totalRegistros, "registro", "registros")</MudText>
                     <MudPagination Count="@totalPages" Selected="@currentPage" SelectedChanged="CambiarPaginaAsync" />
                 </div>
             }
@@ -154,7 +156,9 @@
     private int currentPage = 1;
     private int totalPages = 1;
     private int totalRegistros;
-    private bool isLoading;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
     private bool verificando;
     private bool exportando;
     private VerificacionAuditoriaDto? verificacion;
@@ -162,10 +166,11 @@
     protected override async Task OnInitializedAsync()
     {
         // La guarda es un componente hijo: no detiene el ciclo de vida de la página. Sin esta
-        // comprobación, un Técnico vería además un "No tiene permiso" del API.
+        // comprobación, un Operador vería además un "No tiene permiso" del API.
         var roles = await AuthorizationService.GetUserRolesAsync();
-        if (!roles.Contains("Administrador") && !roles.Contains("Auditor"))
+        if (!roles.Contains(RolesSistema.Administrador) && !roles.Contains(RolesSistema.Supervisor))
         {
+            isLoading = false;
             return;
         }
 

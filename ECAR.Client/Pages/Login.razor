@@ -7,10 +7,10 @@
 @using ECAR.Client.Services
 @using MudBlazor
 
-<MudContainer Class="login-container">
+<MudContainer MaxWidth="MaxWidth.False" Class="login-container">
     <MudPaper Class="login-paper" Elevation="8">
         <div class="logo-section">
-            <img src="images/logo-ecar.png" alt="ECAR Logo" class="logo-image" />
+            <img src="images/logo-ecar.png" alt="ECAR Laboratorios" class="logo-image" />
             <MudText Typo="Typo.h4" Class="ecar-title">Laboratorios ECAR</MudText>
             <MudText Typo="Typo.body1" Class="ecar-subtitle">Sistema de Auditoría de Equipos</MudText>
         </div>
@@ -29,34 +29,12 @@
                 Su sesión expiró. Inicie sesión de nuevo para volver a la página en la que estaba.
             </MudAlert>
         }
-        else if (PasswordCambiada)
-        {
-            <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
-                Su contraseña se cambió correctamente. Inicie sesión con la nueva contraseña.
-            </MudAlert>
-        }
 
-        @if (_diasParaVencer is { } diasParaVencer)
-        {
-            @* Fase 4 (Parte 11 §11.300(b)): la contraseña está por vencer; se avisa antes de entrar. *@
-            <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true">
-                @(diasParaVencer <= 0
-                    ? "Su contraseña vence hoy."
-                    : $"Su contraseña vence en {diasParaVencer} día(s).")
-                Le recomendamos cambiarla ahora.
-            </MudAlert>
-            <div class="d-flex gap-3">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CambiarAhora">Cambiar ahora</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="ContinuarAlDestino">Continuar</MudButton>
-            </div>
-        }
-        else
-        {
         <MudForm @ref="form" Class="login-form">
             @* Immediate: el valor ya está enlazado cuando se pulsa Enter. *@
             <MudTextField T="string" Label="Correo o Usuario AD" @bind-Value="loginDto.CorreoOrUsuarioAD" Variant="Variant.Outlined" Required="false" RequiredError="El correo o usuario AD es requerido" Class="mb-3" AdornmentIcon="@Icons.Material.Filled.Email" Adornment="Adornment.Start"
                 Immediate="true" OnKeyDown="EnterIniciaSesion" />
-            <MudTextField T="string" Label="Password" @bind-Value="loginDto.Password" Variant="Variant.Outlined" InputType="InputType.Password" Required="false" RequiredError="El password es requerido" Class="mb-4" AdornmentIcon="@Icons.Material.Filled.Lock" Adornment="Adornment.Start"
+            <MudTextField T="string" Label="Contraseña" @bind-Value="loginDto.Password" Variant="Variant.Outlined" InputType="InputType.Password" Required="false" RequiredError="La contraseña es requerida" Class="mb-4" AdornmentIcon="@Icons.Material.Filled.Lock" Adornment="Adornment.Start"
                 Immediate="true" OnKeyDown="EnterIniciaSesion" />
 
             @if (isLoading)
@@ -82,7 +60,6 @@
                 </MudAlert>
             }
         </MudForm>
-        }
 
         <MudDivider Class="my-4" />
 
@@ -93,44 +70,48 @@
 </MudContainer>
 
 <style>
+/* El fondo (dos manchas suaves con los colores del logo) lo pone el layout, de borde a borde: aquí solo se
+   centra la tarjeta. Antes el degradado vivía en un contenedor de 1280 px y a los lados quedaban franjas de
+   otro tono. */
 .login-container {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #F4F5F7 0%, #E9EBF0 100%);
-    padding: 2rem;
+    padding: 2rem 1rem;
 }
 
 .login-paper {
-    max-width: 450px;
+    max-width: 432px;
     width: 100%;
-    padding: 2.5rem;
-    border-radius: 16px;
-    background: white;
-    border: 2px solid #E0E6ED;
+    padding: 2.5rem 2.25rem 2rem;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--sombra-3);
 }
 
 .logo-section {
     text-align: center;
-    margin-bottom: 1rem;
-}
-
-.logo-image {
-    max-height: 80px;
-    margin-bottom: 1rem;
-    border-radius: 8px;
-}
-
-.ecar-title {
-    color: #16438C;
-    font-weight: 700;
     margin-bottom: 0.5rem;
 }
 
+.logo-image {
+    height: 112px;
+    width: 112px;
+    margin-bottom: 0.75rem;
+}
+
+.ecar-title {
+    color: var(--titulo);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.25rem;
+}
+
 .ecar-subtitle {
-    color: #79B75D;
-    margin-top: 0.5rem;
+    color: var(--secondary);
+    margin-top: 0.25rem;
     font-weight: 500;
 }
 
@@ -142,21 +123,9 @@
 
 .login-button {
     height: 48px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    background-color: #397FDE !important;
-    color: white !important;
+    font-size: 1rem;
+    font-weight: 500;
     border-radius: 12px !important;
-    border: none !important;
-    box-shadow: 0 4px 12px rgba(57, 127, 222, 0.3);
-    transition: all 0.3s ease;
-}
-
-.login-button:hover {
-    background-color: #2A5FB8 !important;
-    box-shadow: 0 6px 16px rgba(57, 127, 222, 0.4);
-    transform: translateY(-2px);
 }
 
 .footer {
@@ -164,8 +133,19 @@
 }
 
 .footer-text {
-    color: #5A6A7C;
-    opacity: 0.8;
+    color: var(--text-secondary);
+}
+
+@@media (max-width: 480px) {
+    .login-paper {
+        padding: 1.75rem 1.25rem 1.5rem;
+        border-radius: 16px;
+    }
+
+    .logo-image {
+        height: 96px;
+        width: 96px;
+    }
 }
 </style>
 
@@ -194,17 +174,6 @@
     public string? Inactividad { get; set; }
 
     private bool CerradaPorInactividad => Inactividad == "1";
-
-    // La pone CambiarPassword.razor al terminar: el servidor invalida el token anterior.
-    [SupplyParameterFromQuery(Name = "passwordCambiada")]
-    [Parameter]
-    public string? PasswordCambiadaParam { get; set; }
-
-    private bool PasswordCambiada => PasswordCambiadaParam == "1";
-
-    // Días que faltan para que caduque la contraseña, solo si faltan DiasAvisoVencimiento o menos.
-    private const int DiasAvisoVencimiento = 10;
-    private int? _diasParaVencer;
 
     /// <summary>
     /// Destino tras iniciar sesión. Solo se acepta una ruta de esta misma aplicación: si se
@@ -238,15 +207,6 @@
         return "/" + ruta;
     }
 
-    private void CambiarAhora()
-    {
-        var destino = DestinoSeguro();
-        var url = "/cambiar-password" + (destino == "/" ? string.Empty : "?returnUrl=" + Uri.EscapeDataString(destino));
-        NavigationManager.NavigateTo(url, forceLoad: true);
-    }
-
-    private void ContinuarAlDestino() => NavigationManager.NavigateTo(DestinoSeguro(), forceLoad: true);
-
     private async Task EnterIniciaSesion(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or "NumpadEnter" && !isLoading)
@@ -272,7 +232,7 @@
             // cuenta bloqueada con 423, etc.) y se muestra tal cual.
             var respuesta = await AuthService.LoginConMensajeAsync(loginDto);
 
-            if (respuesta.Success && respuesta.Data is { } result)
+            if (respuesta.Success && respuesta.Data is not null)
             {
                 // El reloj de inactividad arranca ahora: si no, la última actividad guardada
                 // podría ser de hace horas y la sesión se cerraría nada más entrar.
@@ -285,24 +245,7 @@
                     // Sin actividad.js no hay cierre por inactividad; el login sigue.
                 }
 
-                // Contraseña temporal o caducada: se cambia antes de entrar (Fase 4, §11.300(b)).
-                if (result.DebeCambiarPassword)
-                {
-                    CambiarAhora();
-                    return;
-                }
-
-                // Contraseña por vencer: se avisa y el usuario decide si la cambia ahora.
-                if (result.PasswordExpiraEl is { } expira)
-                {
-                    var dias = (int)Math.Ceiling((expira - DateTime.UtcNow).TotalDays);
-                    if (dias <= DiasAvisoVencimiento)
-                    {
-                        _diasParaVencer = Math.Max(dias, 0);
-                        return;
-                    }
-                }
-
+                // Sin cambio de contraseña al entrar desde el 03/11/2026: lo administra una API externa.
                 // Login exitoso. forceLoad recarga el layout para reflejar roles y menú.
                 // Si se llegó aquí desde una página protegida, se vuelve a ella.
                 NavigationManager.NavigateTo(DestinoSeguro(), forceLoad: true);
@@ -316,7 +259,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error al iniciar sesión: {ex.Message}";
+            errorMessage = MensajesError.Texto(ex);
         }
         finally
         {

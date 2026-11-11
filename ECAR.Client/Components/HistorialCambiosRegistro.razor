@@ -2,7 +2,7 @@
 
 @* Historial completo de un registro (GET /api/auditoria/registro/{tabla}/{id}, endpoint 2):
    quién lo creó y cada cambio posterior, con el antes y el después. Lo usan el visor de
-   auditoría, la ficha del equipo y el detalle del hallazgo (FE-1). Solo Administrador y Auditor
+   auditoría, la ficha del equipo y el detalle de la novedad. Solo Administrador y Auditor
    pueden leer la auditoría: no se monta para otros roles. *@
 
 @if (cargando)
@@ -26,7 +26,7 @@ else
                 <TitleContent>
                     <div class="d-flex flex-wrap align-center gap-2">
                         <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                            Color="@FormatoAuditoria.ColorAccion(cambio.Accion)" Text="@cambio.Accion" />
+                            Color="@FormatoAuditoria.ColorAccion(cambio.Accion)" Text="@FormatoAuditoria.NombreAccion(cambio.Accion)" />
                         <MudText Typo="Typo.body2">@FormatoAuditoria.FechaHora(cambio.FechaHora)</MudText>
                         <MudText Typo="Typo.body2" Class="mud-text-secondary">· @cambio.Usuario</MudText>
                     </div>

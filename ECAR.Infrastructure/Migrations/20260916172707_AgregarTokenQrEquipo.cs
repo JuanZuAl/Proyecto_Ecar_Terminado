@@ -12,11 +12,11 @@ namespace ECAR.Infrastructure.Migrations
         {
             // Antes de esta migración QRCode era texto libre del formulario de equipo, nunca un token
             // válido. Se limpia para poder acortar la columna e indexarla.
-            migrationBuilder.Sql("UPDATE [Equipos] SET [QRCode] = NULL");
+            migrationBuilder.SqlDiferido("UPDATE [Equipos] SET [QRCode] = NULL");
 
             // Las preguntas creadas antes de la columna Orden quedaron en 0: se numeran por
             // checklist según su id para que el orden sea único y el servidor pueda continuar en max + 1.
-            migrationBuilder.Sql(@"
+            migrationBuilder.SqlDiferido(@"
                 ;WITH numeradas AS (
                     SELECT [IdPregunta], ROW_NUMBER() OVER (PARTITION BY [IdChecklist] ORDER BY [IdPregunta]) AS Nuevo
                     FROM [PreguntasChecklist]

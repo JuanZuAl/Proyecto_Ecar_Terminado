@@ -84,7 +84,7 @@ namespace ECAR.Infrastructure.Migrations
                 nullable: false,
                 defaultValue: 0L);
 
-            migrationBuilder.Sql(
+            migrationBuilder.SqlDiferido(
                 """
                 IF EXISTS (SELECT 1 FROM [Inspecciones]) AND NOT EXISTS (SELECT 1 FROM [Checklists])
                 BEGIN
@@ -229,7 +229,7 @@ namespace ECAR.Infrastructure.Migrations
                 nullable: false,
                 defaultValue: "");
 
-            migrationBuilder.Sql(
+            migrationBuilder.SqlDiferido(
                 """
                 UPDATE i
                 SET [ChecklistIdChecklist] = i.[IdChecklist]
