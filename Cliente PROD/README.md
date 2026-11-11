@@ -25,8 +25,8 @@ CFR 21 Parte 11 y ALCOA+.
 | `Documentación/3. Manual de usuario` | Uso de cada pantalla por rol, con capturas (computador y celular), incluidos el cambio de la contraseña vencida y la activación de la cuenta con SGI.Identity. |
 | `Documentación/4. Guía de primer inicio en el servidor` | Paso a paso de la puesta en marcha en la intranet con IIS: componentes, sitios, base de datos, comandos para generar `JWT__Secret` y `Firma__ClaveHmac`, conexión con SGI.Identity, variables de entorno, `appsettings.Production.json`, regla del proxy, verificación y solución de problemas. |
 
-Los cuatro documentos están al día con SGI.Identity (10/11/2026): gestión v1.2, técnica v1.2, manual de usuario v1.2
-y guía de primer inicio v1.4.
+Los cuatro documentos están al día (11/11/2026): gestión v1.3, técnica v1.3, manual de usuario v1.3 y guía de
+primer inicio v1.5.
 
 ## Requisitos
 
