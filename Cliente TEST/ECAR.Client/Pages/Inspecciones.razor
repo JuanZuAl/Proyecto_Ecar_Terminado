@@ -1,0 +1,320 @@
+@page "/inspecciones"
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager NavigationManager
+@inject AuthorizationService AuthorizationService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5">Inspecciones</MudText>
+                <MudText Typo="Typo.body2">Registro y seguimiento de inspecciones de equipos</MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                @* El Auditor solo consulta (SRS §4). *@
+                @if (puedeEjecutar)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+                        Nueva Inspección
+                    </MudButton>
+                }
+            </CardHeaderActions>
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudGrid Class="mb-2">
+                <MudItem xs="12" sm="8">
+                    <MudTextField T="string" Label="Buscar por equipo, inspector o resultado" @bind-Value="searchText" Variant="Variant.Outlined"
+                        Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true"
+                        OnKeyUp="OnSearchKeyUp" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Label="Estado" Value="estadoFiltro" Variant="Variant.Outlined" Clearable="true"
+                        ValueChanged="OnEstadoChanged">
+                        <MudSelectItem T="string" Value="@InspeccionEstados.EnCurso">En curso</MudSelectItem>
+                        <MudSelectItem T="string" Value="@InspeccionEstados.NovedadesPendientes">Novedades pendientes</MudSelectItem>
+                        <MudSelectItem T="string" Value="@InspeccionEstados.Cerrada">Cerrada</MudSelectItem>
+                        <MudSelectItem T="string" Value="@InspeccionEstados.Anulada">Anulada</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+
+            @if (isLoading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="my-4" />
+            }
+            else if (inspecciones != null && inspecciones.Any())
+            {
+                <MudTable Items="inspecciones" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md" Class="tabla-compacta">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Equipo</MudTh>
+                        <MudTh>Inspector</MudTh>
+                        <MudTh>Fecha</MudTh>
+                        <MudTh>Estado</MudTh>
+                        <MudTh>Resultado</MudTh>
+                        <MudTh>Firma</MudTh>
+                        <MudTh>Evidencias</MudTh>
+                        <MudTh>Novedades</MudTh>
+                        <MudTh Class="col-acciones">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.IdInspeccion</MudTd>
+                        <MudTd DataLabel="Equipo">@context.NombreEquipo</MudTd>
+                        <MudTd DataLabel="Inspector">@context.NombreUsuario</MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaInspeccion.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                Color="@FormatoEstados.ColorInspeccion(context.Estado)" Text="@InspeccionEstados.Texto(context.Estado)"
+                                title="@(context.Estado == InspeccionEstados.Anulada ? $"Anulada: {context.MotivoAnulacion}" : null)" />
+                        </MudTd>
+                        <MudTd DataLabel="Resultado">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                Color="@FormatoEstados.ColorResultado(context.Resultado)"
+                                Text="@InspeccionResultados.Texto(context.Resultado)" />
+                        </MudTd>
+                        <MudTd DataLabel="Firma">
+                            <MudIcon Icon="@(context.TieneFirma ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
+                                Color="@(context.TieneFirma ? Color.Success : Color.Default)" Size="Size.Small" />
+                        </MudTd>
+                        <MudTd DataLabel="Evidencias">@context.TotalEvidencias</MudTd>
+                        @* Total y, si las hay, cuántas siguen pendientes: en una sola columna la tabla cabe sin desplazarse (M-02). *@
+                        <MudTd DataLabel="Novedades">
+                            <span>@context.TotalNovedades</span>
+                            @if (context.NovedadesPendientes > 0)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Class="ml-1 my-0"
+                                         Text="@($"{context.NovedadesPendientes} pend.")"
+                                         title="@($"Novedades pendientes: {context.NovedadesPendientes} de {context.TotalNovedades}")" />
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Acciones" Class="col-acciones">
+                            @if (PuedeContinuar(context))
+                            {
+                                <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                                    StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="() => Continuar(context)" Class="action-button">
+                                    Continuar
+                                </MudButton>
+                            }
+                            else if (InspeccionEstados.EstaFirmada(context.Estado))
+                            {
+                                <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled"
+                                    StartIcon="@Icons.Material.Filled.Assignment" OnClick="() => VerResultado(context)" Class="action-button">
+                                    Ver resultado
+                                </MudButton>
+                            }
+                            @* El Operador no entra a Novedades: las de su inspección las ve en «Ver resultado». *@
+                            @if (context.TotalNovedades > 0 && veNovedades)
+                            {
+                                <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                                    StartIcon="@Icons.Material.Filled.ReportProblem" Href="@($"/novedades?inspeccion={context.IdInspeccion}")" Class="action-button">
+                                    Novedades
+                                </MudButton>
+                            }
+                            <MudButton Size="Size.Small" Color="Color.Info" Variant="Variant.Filled"
+                                StartIcon="@Icons.Material.Filled.Visibility" OnClick="() => OpenViewDialog(context)" Class="action-button">
+                                Ver
+                            </MudButton>
+                            @* Sin «Editar» (22/10/2026): la inspección se completa en la ejecución («Continuar»).
+                               Fase 4 (§3.6): una inspección en curso no se borra, se anula con motivo y se
+                               conserva con sus respuestas y fotos; solo la anula el Administrador, igual que
+                               el API. Una cerrada no se toca (regla 6). *@
+                            @if (esAdmin && context.Estado == InspeccionEstados.EnCurso)
+                            {
+                                <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
+                                    StartIcon="@Icons.Material.Filled.Block" OnClick="() => AnularInspeccion(context)" Class="action-button">
+                                    Anular
+                                </MudButton>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudPagination Class="mt-4" Count="@totalPages" Selected="@currentPage"
+                    SelectedChanged="HandlePageChange" />
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Class="my-4">
+                    No hay inspecciones para mostrar
+                </MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<InspeccionDto>? inspecciones;
+    private string searchText = string.Empty;
+    private string? estadoFiltro;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 1;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
+
+    // Administrador, Operador y Estándar ejecutan; el Supervisor solo consulta. Anular es del Administrador.
+    private bool esAdmin;
+    private bool puedeEjecutar;
+    private long? idUsuario;
+
+    // La pantalla Novedades es de Administrador, Estándar y Supervisor (igual que el menú).
+    private bool veNovedades;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var roles = await AuthorizationService.GetUserRolesAsync();
+        esAdmin = roles.Contains(RolesSistema.Administrador);
+        puedeEjecutar = esAdmin || roles.Contains(RolesSistema.Operador) || roles.Contains(RolesSistema.Estandar);
+        veNovedades = esAdmin || roles.Contains(RolesSistema.Estandar) || roles.Contains(RolesSistema.Supervisor);
+        idUsuario = long.TryParse(await AuthorizationService.GetUserIdAsync(), out var id) ? id : null;
+        await LoadInspeccionesAsync();
+    }
+
+    // El Estándar ve las inspecciones de todos, pero continúa solo las suyas: como en el API, una en
+    // curso la modifican quien la ejecuta o el Administrador.
+    private bool PuedeContinuar(InspeccionDto inspeccion) =>
+        inspeccion.Estado == InspeccionEstados.EnCurso
+        && (esAdmin || (puedeEjecutar && inspeccion.IdUsuario == idUsuario));
+
+    private async Task LoadInspeccionesAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            var result = await HttpClientService.GetInspeccionesAsync(currentPage, pageSize, searchText, estadoFiltro);
+
+            if (result != null && result.Success && result.Data != null)
+            {
+                inspecciones = result.Data.Data ?? new List<InspeccionDto>();
+                totalPages = result.Data.TotalPages;
+            }
+            else
+            {
+                Snackbar.Add(result?.Message ?? "Error al cargar inspecciones", Severity.Error);
+                inspecciones = new List<InspeccionDto>();
+                totalPages = 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
+            inspecciones = new List<InspeccionDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            currentPage = 1;
+            await LoadInspeccionesAsync();
+        }
+    }
+
+    private async Task HandlePageChange(int newPage)
+    {
+        currentPage = newPage;
+        await LoadInspeccionesAsync();
+    }
+
+    // El filtro se aplica en el servidor, antes de paginar, para que el listado y el número de
+    // páginas cuenten solo las inspecciones de ese estado.
+    private async Task OnEstadoChanged(string? value)
+    {
+        estadoFiltro = value;
+        currentPage = 1;   // sin esto se quedaría en la página 7 de un listado que ahora tiene 2
+        await LoadInspeccionesAsync();
+    }
+
+    /// <summary>Retoma una inspección EnCurso en el flujo de ejecución (FE-0).</summary>
+    private void Continuar(InspeccionDto inspeccion)
+    {
+        NavigationManager.NavigateTo($"/inspecciones/ejecutar/{inspeccion.IdInspeccion}");
+    }
+
+    /// <summary>
+    /// Ruta definitiva de FE-3 (docs/PLAN_FASE3_TAREAS.md §3.5 y §5): todavía no existe la
+    /// página ResultadoInspeccion.razor en develop, así que hasta que FE-3 la publique esto
+    /// navega a una ruta que aún no resuelve nada.
+    /// </summary>
+    private void VerResultado(InspeccionDto inspeccion)
+    {
+        NavigationManager.NavigateTo($"/inspecciones/{inspeccion.IdInspeccion}/resultado");
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        // El registro manual (POST /api/inspecciones) es solo del Administrador; un Operador o un Estándar inicia
+        // la inspección eligiendo equipo y checklist, igual que desde el QR.
+        if (!esAdmin)
+        {
+            NavigationManager.NavigateTo("/inspecciones/iniciar");
+            return;
+        }
+
+        var dialog = await DialogService.ShowAsync<InspeccionModal>("Registrar Nueva Inspección");
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            await LoadInspeccionesAsync();
+        }
+    }
+
+    private async Task OpenViewDialog(InspeccionDto inspeccion)
+    {
+        var parameters = new DialogParameters { ["Inspeccion"] = inspeccion };
+        await DialogService.ShowAsync<InspeccionDetailModal>("Detalle de la Inspección", parameters);
+    }
+
+    private async Task AnularInspeccion(InspeccionDto inspeccion)
+    {
+        var motivo = await MotivoDialog.PedirAsync(DialogService, "Anular inspección",
+            $"La inspección #{inspeccion.IdInspeccion} del equipo «{inspeccion.NombreEquipo}» quedará anulada: " +
+            "se conservan sus respuestas y fotos, pero ya no se podrá continuar ni firmar.", "Anular", Color.Error);
+        if (motivo is null)
+        {
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var resultado = await HttpClientService.AnularInspeccionAsync(inspeccion.IdInspeccion, motivo);
+            Snackbar.Add(resultado.Success ? "Inspección anulada" : resultado.Message,
+                resultado.Success ? Severity.Success : Severity.Error);
+            if (resultado.Success)
+            {
+                await LoadInspeccionesAsync();
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+}
+
+<style>
+.action-button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+.action-button:hover {
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+</style>

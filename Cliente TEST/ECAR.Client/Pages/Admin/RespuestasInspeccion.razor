@@ -1,0 +1,179 @@
+﻿@page "/inspecciones/respuestas"
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5">Respuestas de Inspección</MudText>
+                <MudText Typo="Typo.body2">Respuestas registradas durante una inspección</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="Buscar" @bind-Value="searchText" Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true"
+                                  DebounceInterval="400" OnDebounceIntervalElapsed="OnSearchChanged" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudAutocomplete AdornmentAriaLabel="Mostrar opciones" T="InspeccionDto" Label="Filtrar por inspección" @bind-Value="inspeccionSeleccionada"
+                                     @bind-Value:after="OnInspeccionChanged"
+                                     SearchFunc="BuscarInspeccionesAsync" ToStringFunc="@(i => i == null ? string.Empty : $"#{i.IdInspeccion} - {i.NombreEquipo}")"
+                                     Variant="Variant.Outlined"
+                                     MinCharacters="0" MaxItems="@MaxResultadosBusqueda" ResetValueOnEmptyText="true"
+                                     Clearable="true" />
+                </MudItem>
+            </MudGrid>
+
+            @if (isLoading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="my-4" />
+            }
+            else if (respuestas != null && respuestas.Any())
+            {
+                <MudTable Items="respuestas" Hover="true" Striped="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Inspección</MudTh>
+                        <MudTh>Pregunta</MudTh>
+                        <MudTh>Respuesta</MudTh>
+                        <MudTh>¿Presenta novedad?</MudTh>
+                        <MudTh>Observación</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.IdRespuesta.ToString()</MudTd>
+                        <MudTd>@context.IdInspeccion.ToString()</MudTd>
+                        <MudTd>@context.IdPregunta.ToString()</MudTd>
+                        @* Desde el 04/11/2026 una pregunta Sí/No se responde solo con «¿Presenta novedad?». *@
+                        <MudTd>@(string.IsNullOrWhiteSpace(context.Respuesta) ? "—" : FormatoRespuesta.Mostrar(context.Respuesta))</MudTd>
+                        <MudTd>
+                            <MudChip T="string" Size="Size.Small" Color="@(context.PresentaNovedad == true ? Color.Warning : Color.Default)"
+                                     Text="@(context.PresentaNovedad switch { true => "Sí", false => "No", _ => "—" })" />
+                        </MudTd>
+                        <MudTd>@(string.IsNullOrWhiteSpace(context.Observacion) ? "—" : context.Observacion)</MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudPagination Class="mt-4" Count="@totalPages" Selected="@currentPage"
+                    SelectedChanged="HandlePageChange" />
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Class="my-4">
+                    No hay respuestas para mostrar
+                </MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<RespuestaInspeccionDto>? respuestas;
+    private string searchText = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 1;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
+
+    // El API rechaza pageSize mayor que 100; además el desplegable solo muestra los primeros resultados.
+    private const int MaxResultadosBusqueda = 20;
+
+    private InspeccionDto? inspeccionSeleccionada;
+
+    // Evita repetir el mismo mensaje de error en cada pulsación del buscador.
+    private bool errorInspeccionesAvisado;
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRespuestasAsync();
+    }
+
+    private async Task LoadRespuestasAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            var result = await HttpClientService.GetRespuestasInspeccionAsync(
+                currentPage, pageSize, searchText, inspeccionSeleccionada?.IdInspeccion);
+
+            if (result != null && result.Success && result.Data != null)
+            {
+                respuestas = result.Data.Data ?? new List<RespuestaInspeccionDto>();
+                totalPages = result.Data.TotalPages;
+            }
+            else
+            {
+                Snackbar.Add(result?.Message ?? "Error al cargar respuestas", Severity.Error);
+                respuestas = new List<RespuestaInspeccionDto>();
+                totalPages = 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
+            respuestas = new List<RespuestaInspeccionDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnSearchChanged()
+    {
+        currentPage = 1;
+        await LoadRespuestasAsync();
+    }
+
+    // El filtro se resuelve en el API para que la lista funcione con muchas inspecciones.
+    private async Task<IEnumerable<InspeccionDto>> BuscarInspeccionesAsync(string valor, CancellationToken token)
+    {
+        var respuesta = await HttpClientService.GetInspeccionesAsync(1, MaxResultadosBusqueda, valor);
+
+        if (respuesta == null || !respuesta.Success)
+        {
+            if (!errorInspeccionesAvisado)
+            {
+                errorInspeccionesAvisado = true;
+                Snackbar.Add(respuesta?.Message ?? "No se pudieron cargar las inspecciones", Severity.Error);
+            }
+
+            return Array.Empty<InspeccionDto>();
+        }
+
+        errorInspeccionesAvisado = false;
+        return respuesta.Data?.Data ?? new List<InspeccionDto>();
+    }
+
+    private async Task OnInspeccionChanged()
+    {
+        currentPage = 1;
+        await LoadRespuestasAsync();
+    }
+
+    private async Task HandlePageChange(int newPage)
+    {
+        currentPage = newPage;
+        await LoadRespuestasAsync();
+    }
+}
+
+
+<style>
+.action-button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+.action-button:hover {
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+</style>

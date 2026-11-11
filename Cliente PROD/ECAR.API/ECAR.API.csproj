@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>b724bb04-92d3-41ed-8e2d-3a2ec8e5c071</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- PDFsharp-MigraDoc 6.2.4 es la última versión MIT: desde la 6.5 es AGPL-3.0 y exige licencia. No actualizar sin revisarlo (plan §3.9). -->
+    <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.20" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+    <PackageReference Include="System.DirectoryServices.Protocols" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logo del encabezado de los PDF: el mismo archivo de la pantalla de inicio, incrustado en el ensamblado. -->
+    <EmbeddedResource Include="..\ECAR.Client\wwwroot\images\logo-ecar.png" Link="Recursos\logo-ecar.png" LogicalName="ECAR.API.logo-ecar.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ECAR.Infrastructure\ECAR.Infrastructure.csproj" />
+    <ProjectReference Include="..\ECAR.Shared\ECAR.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,121 @@
+@* Dibuja el control de respuesta que corresponde al tipo de respuesta de la pregunta. *@
+
+@if (TipoRespuesta == TiposRespuesta.SiNo)
+{
+    <MudText Typo="Typo.body2" Class="sino-etiqueta">@Label</MudText>
+    @* role="radio" + tabindex: se recorre con Tab y se marca con Enter o la barra espaciadora. *@
+    <div class="sino-casillas" role="radiogroup" aria-label="@Label">
+        @foreach (var opcion in Opciones)
+        {
+            var seleccionada = EsLaMisma(Valor, opcion.Valor);
+            <div class="sino-casilla @(seleccionada ? "sino-seleccionada" : "")" role="radio" tabindex="0"
+                 aria-checked="@(seleccionada ? "true" : "false")"
+                 @onclick="() => SeleccionarAsync(opcion.Valor)"
+                 @onkeydown="e => TeclaAsync(e, opcion.Valor)">
+                <MudIcon Icon="@(seleccionada ? Icons.Material.Filled.CheckBox : Icons.Material.Filled.CheckBoxOutlineBlank)"
+                    Color="@(seleccionada ? Color.Primary : Color.Default)" />
+                <MudText Typo="Typo.body1">@opcion.Etiqueta</MudText>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <MudTextField T="string" Label="@Label" Value="@Valor" ValueChanged="SeleccionarAsync"
+        Variant="Variant.Outlined" Lines="3" Immediate="true"
+        HelperText="Rellene la información solicitada" />
+}
+
+@code {
+    // Lo que se envía al API y lo que se ve son cosas distintas. El contrato
+    // (PLAN_FASE3_TAREAS §3.2, endpoint 3) acepta "Si" y "No" SIN tilde; antes se enviaba
+    // "Sí" y el servidor respondía 400 a toda respuesta afirmativa, así que una inspección
+    // sin novedades no se podía cerrar desde la aplicación. La tilde va solo en la etiqueta.
+    private static readonly (string Valor, string Etiqueta)[] Opciones = { ("Si", "Sí"), ("No", "No") };
+
+    /// <summary>Tipo de respuesta de la pregunta (ver <see cref="TiposRespuesta" />).</summary>
+    [Parameter] public string TipoRespuesta { get; set; } = TiposRespuesta.Texto;
+
+    [Parameter] public string? Valor { get; set; }
+
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+
+    [Parameter] public string Label { get; set; } = "Respuesta";
+
+    // "Sí" con tilde se trata como "Si": así un valor guardado antes de la corrección sigue
+    // apareciendo marcado. Se hace a mano y no con CompareOptions.IgnoreNonSpace porque en
+    // WebAssembly la comparación cultural depende de los datos ICU que se carguen.
+    private static bool EsLaMisma(string? valor, string opcion)
+    {
+        var normalizado = valor?.Trim();
+        if (string.Equals(normalizado, "Sí", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizado = "Si";
+        }
+
+        return string.Equals(normalizado, opcion, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private Task TeclaAsync(KeyboardEventArgs e, string valor) =>
+        e.Key is "Enter" or " " or "Spacebar" ? SeleccionarAsync(valor) : Task.CompletedTask;
+
+    private async Task SeleccionarAsync(string valor)
+    {
+        // En Sí/No, volver a pulsar la casilla marcada la desmarca.
+        var nuevo = TipoRespuesta == TiposRespuesta.SiNo && EsLaMisma(Valor, valor)
+            ? string.Empty
+            : valor;
+
+        Valor = nuevo;
+        await ValorChanged.InvokeAsync(nuevo);
+    }
+}
+
+<style>
+.sino-casillas {
+    display: flex;
+    gap: 12px;
+}
+
+/* El enunciado de la pregunta: legible, no una nota al margen. */
+.sino-etiqueta {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--ink);
+}
+
+/* Área táctil de 46 px: se usa de pie junto al equipo, con el dedo. */
+.sino-casilla {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-height: 46px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radio);
+    background-color: var(--surface);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+    user-select: none;
+}
+
+.sino-casilla:hover {
+    border-color: var(--primary);
+    background-color: #F7FAFE;
+}
+
+.sino-casilla:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.sino-seleccionada {
+    border-color: var(--primary);
+    background-color: var(--primary-tint);
+    font-weight: 500;
+}
+</style>

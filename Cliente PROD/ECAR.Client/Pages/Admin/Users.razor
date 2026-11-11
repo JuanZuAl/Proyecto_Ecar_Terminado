@@ -1,0 +1,313 @@
+@page "/admin/users"
+@inject AuthorizationService AuthorizationService
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<AdminRouteGuard>
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5">Gestión de Usuarios</MudText>
+                <MudText Typo="Typo.body2">Administrar los usuarios del sistema</MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+                    Nuevo Usuario
+                </MudButton>
+            </CardHeaderActions>
+        </MudCardHeader>
+
+        <MudCardContent>
+            @* Con SGI.Identity (ECARAuthentication:Mode = SgiIdentity) los roles salen de los grupos del usuario. *@
+            @if (modoSgi)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                    Los usuarios entran con SGI.Identity: allí se valida, se bloquea y se cambia su contraseña. Su nombre
+                    y sus roles (por sus grupos) vienen de SGI.Identity y se actualizan en cada inicio de sesión, así que
+                    un cambio de nombre o de rol hecho aquí dura hasta que el usuario vuelva a entrar.
+                </MudAlert>
+            }
+            <MudTextField T="string" Label="Buscar" @bind-Value="searchText" Variant="Variant.Outlined" 
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true"
+                Class="mb-4" />
+
+            @if (isLoading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="my-4" />
+            }
+            else if (usuarios != null && usuarios.Any())
+            {
+                @* Parte 11 §11.300(d): el Administrador ve qué cuentas bloquearon los intentos fallidos. *@
+                @if (usuarios.Count(EstaBloqueado) is var bloqueadas and > 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+                        @(bloqueadas == 1 ? "Hay 1 cuenta bloqueada" : $"Hay {bloqueadas} cuentas bloqueadas") por intentos
+                        fallidos en esta lista. Se desbloquean solas pasado el tiempo de bloqueo o con «Desbloquear».
+                    </MudAlert>
+                }
+                <MudTable Items="usuarios" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Md">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Nombre</MudTh>
+                        <MudTh>Correo</MudTh>
+                        <MudTh>@EtiquetaUsuarioRed</MudTh>
+                        <MudTh>Roles</MudTh>
+                        <MudTh>Estado</MudTh>
+                        <MudTh Class="col-acciones">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.IdUsuario.ToString()</MudTd>
+                        <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+                        <MudTd DataLabel="Correo">@context.Correo</MudTd>
+                        <MudTd DataLabel="@EtiquetaUsuarioRed">@(context.UsuarioAD ?? "-")</MudTd>
+                        <MudTd DataLabel="Roles">
+                            @if (context.Roles != null && context.Roles.Any())
+                            {
+                                @string.Join(", ", context.Roles)
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption">Sin roles</MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Color="@(context.Activo ? Color.Success : Color.Error)" 
+                                Size="Size.Small" Variant="Variant.Outlined" Text="@(context.Activo ? "Activo" : "Inactivo")" />
+                            @if (EstaBloqueado(context))
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled"
+                                    Text="@($"Bloqueada hasta {context.BloqueadoHasta!.Value.ToLocalTime():HH:mm}")" />
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Acciones" Class="col-acciones">
+                            <div class="d-flex flex-wrap justify-end gap-1">
+                                <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" 
+                                    StartIcon="@Icons.Material.Filled.Edit" OnClick="() => OpenEditDialog(context)" Class="action-button">
+                                    Editar
+                                </MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled"
+                                           Color="@(context.Activo ? Color.Error : Color.Primary)"
+                                           StartIcon="@(context.Activo ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)"
+                                           OnClick="() => DeleteUser(context)" Class="action-button">
+                                    @(context.Activo ? "Desactivar" : "Activar")
+                                </MudButton>
+                                @* Parte 11 §11.300(d): desbloqueo con motivo. Desde el 03/11/2026 no se restablecen
+                                   contraseñas aquí: lo hará una API externa. *@
+                                @if (EstaBloqueado(context))
+                                {
+                                    <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
+                                               StartIcon="@Icons.Material.Filled.LockOpen" OnClick="() => DesbloquearUsuario(context)" Class="action-button">
+                                        Desbloquear
+                                    </MudButton>
+                                }
+                            </div>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudPagination Class="mt-4" Count="@totalPages" Selected="@currentPage" 
+                    SelectedChanged="HandlePageChange" />
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Class="my-4">
+                    No hay usuarios para mostrar
+                </MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+    </MudContainer>
+</AdminRouteGuard>
+
+@code {
+    private List<UsuarioDto>? usuarios;
+
+    private static bool EstaBloqueado(UsuarioDto usuario) => usuario.BloqueadoHasta > DateTime.UtcNow;
+    private List<RolDto>? availableRoles;
+    private string searchText = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 1;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
+
+    // Modo SgiIdentity: los usuarios y sus roles vienen de SGI.Identity (GET api/auth/politica).
+    private bool modoSgi;
+
+    private string EtiquetaUsuarioRed => modoSgi ? "Usuario SGI" : "Usuario AD";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // AdminRouteGuard es un componente hijo y no detiene la carga de la página: sin esta
+        // comprobación, otro rol dispararía peticiones que el API rechaza con 403 (guía §3.5).
+        if (!await AuthorizationService.IsAdminAsync())
+        {
+            isLoading = false;
+            return;
+        }
+
+        var politica = await HttpClientService.GetPoliticaSeguridadAsync();
+        modoSgi = politica.Success && politica.Data?.ModoAutenticacion == ModosAutenticacion.SgiIdentity;
+
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        
+        try
+        {
+            // Cargar los usuarios
+            var usersResult = await HttpClientService.GetUsuariosAsync(currentPage, pageSize, searchText);
+            
+            if (usersResult != null && usersResult.Success && usersResult.Data != null)
+            {
+                usuarios = usersResult.Data.Data ?? new List<UsuarioDto>();
+                totalPages = usersResult.Data.TotalPages;
+            }
+            else
+            {
+                Snackbar.Add(usersResult?.Message ?? "Error al cargar usuarios", Severity.Error);
+                usuarios = new List<UsuarioDto>();
+                totalPages = 1;
+            }
+
+            // Cargar los roles disponibles
+            var rolesResult = await HttpClientService.GetRolesAsync(1, 100); // Traer todos los roles
+            if (rolesResult != null && rolesResult.Success && rolesResult.Data != null)
+            {
+                availableRoles = rolesResult.Data.Data ?? new List<RolDto>();
+            }
+            else
+            {
+                availableRoles = new List<RolDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
+            usuarios = new List<UsuarioDto>();
+            availableRoles = new List<RolDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandlePageChange(int newPage)
+    {
+        currentPage = newPage;
+        await LoadDataAsync();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters { ["AvailableRoles"] = availableRoles };
+        var dialog = await DialogService.ShowAsync<UserModal>("Crear Nuevo Usuario", parameters);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task OpenEditDialog(UsuarioDto usuario)
+    {
+        var parameters = new DialogParameters 
+        { 
+            ["Usuario"] = usuario,
+            ["AvailableRoles"] = availableRoles
+        };
+        var dialog = await DialogService.ShowAsync<UserModal>("Editar Usuario", parameters);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    // Endpoint 26: quita el bloqueo por intentos fallidos. El motivo queda en la auditoría.
+    private async Task DesbloquearUsuario(UsuarioDto usuario)
+    {
+        var motivo = await MotivoDialog.PedirAsync(DialogService, "Desbloquear cuenta",
+            $"La cuenta de '{usuario.Nombre}' volverá a poder iniciar sesión.",
+            "Desbloquear", Color.Warning);
+        if (motivo is null)
+        {
+            return;
+        }
+
+        var respuesta = await HttpClientService.DesbloquearUsuarioAsync(usuario.IdUsuario, motivo);
+        if (respuesta.Success)
+        {
+            Snackbar.Add($"Cuenta de '{usuario.Nombre}' desbloqueada", Severity.Success);
+            // El bloqueo y el aviso salen de la lista: hay que recargarla para que desaparezcan.
+            await LoadDataAsync();
+        }
+        else
+        {
+            Snackbar.Add(respuesta.Message ?? "No se pudo completar la accion", Severity.Error);
+        }
+    }
+
+    private async Task DeleteUser(UsuarioDto usuario)
+    {
+        var action = usuario.Activo ? "desactivar" : "activar";
+        // Fase 4 (§3.3): desactivar y reactivar piden motivo, que queda en la auditoría.
+        var motivo = await MotivoDialog.PedirAsync(DialogService, $"{char.ToUpper(action[0])}{action[1..]} usuario",
+            $"Indique por qué va a {action} al usuario «{usuario.Nombre}».", $"{char.ToUpper(action[0])}{action[1..]}",
+            usuario.Activo ? Color.Error : Color.Success);
+
+        if (motivo is not null)
+        {
+            isLoading = true;
+            try
+            {
+                // DELETE es el borrado lógico y siempre desactiva: activar tiene su propio
+                // endpoint. Antes los dos botones llamaban a DELETE y "Activar" no hacía nada.
+                var resultado = usuario.Activo
+                    ? await HttpClientService.DeleteUsuarioAsync(usuario.IdUsuario, motivo)
+                    : await HttpClientService.ActivarUsuarioAsync(usuario.IdUsuario, motivo);
+
+                if (resultado != null && resultado.Success)
+                {
+                    Snackbar.Add(resultado.Message ?? "Usuario actualizado", Severity.Success);
+                    await LoadDataAsync();
+                }
+                else
+                {
+                    Snackbar.Add(resultado?.Message ?? $"Error al {action} el usuario", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
+            }
+            finally
+            {
+                isLoading = false;
+            }
+        }
+    }
+}
+
+<style>
+.action-button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+.action-button:hover {
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+</style>

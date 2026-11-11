@@ -1,0 +1,140 @@
+@page "/activar-cuenta"
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+@inject CambioPasswordEstado Estado
+
+@* Configuración de la contraseña inicial de una cuenta local nueva de SGI.Identity (guía de integración §7.2). Solo
+   se abre cuando el login recibió RequiresInitialPasswordSetup y el pase para hacerlo; sin él se vuelve al login.
+   Las reglas de la contraseña las valida SGI.Identity. No crea sesión: al terminar se inicia sesión con la nueva
+   contraseña. *@
+
+@if (Estado.EsPara(AccionesLogin.ConfigurarPasswordInicial))
+{
+    <TarjetaAcceso Titulo="Activar su cuenta" Subtitulo="Configure su contraseña para empezar a usar el sistema.">
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+            @(string.IsNullOrWhiteSpace(Estado.Mensaje) ? "Debe configurar su contraseña para continuar." : Estado.Mensaje)
+        </MudAlert>
+
+        <div class="acceso-form">
+            <MudTextField T="string" Label="Usuario" Value="@Estado.Usuario" ReadOnly="true" Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" Class="mb-2" />
+
+            <MudTextField T="string" Label="Número de identificación" @bind-Value="numeroIdentificacion" Variant="Variant.Outlined"
+                          Immediate="true" AutoFocus="true" Disabled="@enviando" MaxLength="50"
+                          HelperText="El de su documento, tal como lo tiene registrado Soporte T.I." HelperTextOnFocus="false"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Badge" Class="mb-2"
+                          OnKeyDown="EnterEnvia" />
+
+            <MudTextField T="string" Label="Nueva contraseña" @bind-Value="nuevaPassword" Variant="Variant.Outlined"
+                          InputType="@(mostrar ? InputType.Text : InputType.Password)" Immediate="true" Disabled="@enviando"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@(mostrar ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                          AdornmentAriaLabel="@(mostrar ? "Ocultar contraseñas" : "Mostrar contraseñas")"
+                          OnAdornmentClick="@(() => mostrar = !mostrar)" Class="mb-2" OnKeyDown="EnterEnvia" />
+
+            <MudTextField T="string" Label="Confirmar nueva contraseña" @bind-Value="confirmarPassword" Variant="Variant.Outlined"
+                          InputType="@(mostrar ? InputType.Text : InputType.Password)" Immediate="true" Disabled="@enviando"
+                          Class="mb-2" OnKeyDown="EnterEnvia" />
+
+            @if (enviando)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" />
+            }
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" Class="acceso-boton"
+                       StartIcon="@Icons.Material.Filled.HowToReg" OnClick="EnviarAsync" Disabled="@(enviando || !Completo)">
+                @(enviando ? "Guardando…" : "Configurar contraseña")
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Default" FullWidth="true" Class="acceso-boton mt-1"
+                       StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="VolverAlLogin" Disabled="@enviando">
+                Volver al inicio de sesión
+            </MudButton>
+
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-3">
+                    <MudText Typo="Typo.body2">@error</MudText>
+                    @if (errores is { Count: > 0 })
+                    {
+                        <ul class="mt-1 mb-0 pl-4">
+                            @foreach (var detalle in errores)
+                            {
+                                <li><MudText Typo="Typo.body2">@detalle</MudText></li>
+                            }
+                        </ul>
+                    }
+                </MudAlert>
+            }
+        </div>
+    </TarjetaAcceso>
+}
+
+@code {
+    private string numeroIdentificacion = string.Empty;
+    private string nuevaPassword = string.Empty;
+    private string confirmarPassword = string.Empty;
+    private bool mostrar;
+    private bool enviando;
+    private string? error;
+    private List<string>? errores;
+
+    private bool Completo => !string.IsNullOrWhiteSpace(numeroIdentificacion) && !string.IsNullOrEmpty(nuevaPassword)
+                             && !string.IsNullOrEmpty(confirmarPassword);
+
+    protected override void OnInitialized()
+    {
+        // Solo cuando el API respondió que SGI.Identity pide configurar la contraseña inicial.
+        if (!Estado.EsPara(AccionesLogin.ConfigurarPasswordInicial))
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+        }
+    }
+
+    private async Task EnterEnvia(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "NumpadEnter" && !enviando && Completo)
+        {
+            await EnviarAsync();
+        }
+    }
+
+    private async Task EnviarAsync()
+    {
+        if (enviando || !Completo)
+        {
+            return;
+        }
+
+        enviando = true;
+        error = null;
+        errores = null;
+
+        var respuesta = await AuthService.ConfigurarPasswordInicialAsync(new ConfigurarPasswordInicialDto
+        {
+            Pase = Estado.Pase ?? string.Empty,
+            NumeroIdentificacion = numeroIdentificacion.Trim(),
+            NuevaPassword = nuevaPassword,
+            ConfirmarPassword = confirmarPassword
+        });
+
+        enviando = false;
+        if (respuesta.Success)
+        {
+            var volver = Estado.ReturnUrl;
+            Estado.Limpiar();
+            NavigationManager.NavigateTo(CambiarPassword.DireccionLogin(Login.AvisoCuentaActivada, volver), replace: true);
+            return;
+        }
+
+        error = string.IsNullOrWhiteSpace(respuesta.Message) ? "No fue posible configurar la contraseña." : respuesta.Message;
+        errores = respuesta.Errors is { Count: > 0 } lista && !(lista.Count == 1 && lista[0] == error) ? lista : null;
+    }
+
+    private void VolverAlLogin()
+    {
+        var volver = Estado.ReturnUrl;
+        Estado.Limpiar();
+        NavigationManager.NavigateTo(CambiarPassword.DireccionLogin(null, volver), replace: true);
+    }
+}

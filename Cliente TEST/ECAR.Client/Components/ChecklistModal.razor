@@ -1,0 +1,303 @@
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog Options="Opciones" Class="form-enter">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsEditMode ? "Editar Checklist" : "Crear Nuevo Checklist")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudTextField T="string" Label="Nombre" @bind-Value="nombre"
+                Variant="Variant.Outlined" Required="true" RequiredError="El nombre es requerido"
+                MaxLength="200" Immediate="true" Class="mb-3" />
+
+            <MudTextField T="string" Label="Versión" @bind-Value="version"
+                Variant="Variant.Outlined" Required="true" RequiredError="La versión es requerida"
+                MaxLength="20" Immediate="true" Class="mb-3" />
+
+            @if (IsEditMode)
+            {
+                <MudSwitch T="bool" Label="Activo" @bind-Value="activo" Color="Color.Primary" Class="mb-3" />
+            }
+
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Preguntas del Checklist</MudText>
+
+            @if (tieneRespuestasRegistradas)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-3">
+                    Este checklist ya se usó en inspecciones. Cree una versión nueva para modificar sus preguntas.
+                </MudAlert>
+            }
+
+            @if (preguntas.Any())
+            {
+                @for (var i = 0; i < preguntas.Count; i++)
+                {
+                    var index = i;
+                    <MudPaper Elevation="0" Class="pregunta-row mb-3 pa-3">
+                        <MudGrid>
+                            @* Sin tipo de respuesta desde el 29/10/2026: todas son Sí/No, y en la inspección cada una
+                               lleva además «¿Presenta novedad?». *@
+                            <MudItem xs="12" sm="8">
+                                <MudTextField T="string" Label="Pregunta (Sí / No)" @bind-Value="preguntas[index].Pregunta"
+                                    Variant="Variant.Outlined" Required="true" RequiredError="La pregunta es requerida"
+                                    Immediate="true" Disabled="@tieneRespuestasRegistradas" />
+                            </MudItem>
+                            @* F-10: el interruptor y la papelera comparten columna, uno a cada extremo; en el
+                               teléfono bajan de línea debajo de la pregunta y nunca se superponen. *@
+                            <MudItem xs="12" sm="4" Class="d-flex align-center justify-space-between flex-wrap gap-2">
+                                <MudSwitch T="bool" Label="Obligatoria" @bind-Value="preguntas[index].Obligatoria"
+                                    Color="Color.Primary" Disabled="@tieneRespuestasRegistradas" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                    aria-label="Quitar pregunta" title="Quitar pregunta"
+                                    OnClick="() => RemovePregunta(index)" Disabled="@tieneRespuestasRegistradas" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-3">Este checklist no tiene preguntas todavía</MudAlert>
+            }
+
+            @* F-10: Filled para que se lea; Outlined dejaba el texto lila sobre el fondo azul de theme.css. *@
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddPregunta" Disabled="@tieneRespuestasRegistradas">
+                Agregar pregunta
+            </MudButton>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="dialog-button cancel-btn">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button enter-guardar">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    // MudBlazor 9 solo aplica las Options de <MudDialog> a los diálogos en línea: abierto con
+    // DialogService salía con el ancho pequeño (600 px). Se aplican al abrirse.
+    private static readonly DialogOptions Opciones = new() { CloseOnEscapeKey = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+    protected override Task OnInitializedAsync() => MudDialog.SetOptionsAsync(Opciones);
+    private MudForm? form;
+
+    [Parameter]
+    public ChecklistDto? Checklist { get; set; }
+
+    private bool IsEditMode => Checklist != null;
+    private string nombre = string.Empty;
+    private string version = string.Empty;
+    private bool activo = true;
+    private List<PreguntaFormItem> preguntas = new();
+
+    // TODO: FE-0/BE-1 — reemplazar por el campo real que exponga ChecklistDto (p.ej.
+    // TieneRespuestasRegistradas) cuando el backend lo calcule vía RespuestasInspeccion +
+    // PreguntasChecklist. Simulado en false por ahora; Nombre, Versión y Estado siguen editables
+    // sin importar este valor.
+    private bool tieneRespuestasRegistradas = false;
+
+    protected override void OnInitialized()
+    {
+        if (IsEditMode && Checklist != null)
+        {
+            nombre = Checklist.Nombre;
+            version = Checklist.Version;
+            activo = Checklist.Activo;
+            preguntas = Checklist.Preguntas
+                .Select(p => new PreguntaFormItem { Pregunta = p.Pregunta, TipoRespuesta = p.TipoRespuesta, Obligatoria = p.Obligatoria })
+                .ToList();
+        }
+    }
+
+    private void AddPregunta()
+    {
+        preguntas.Add(new PreguntaFormItem { TipoRespuesta = TiposRespuesta.SiNo });
+    }
+
+    private void RemovePregunta(int index)
+    {
+        preguntas.RemoveAt(index);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (form != null)
+        {
+            await form.ValidateAsync();
+            if (!form.IsValid)
+            {
+                return;
+            }
+        }
+
+        if (preguntas.Any(p => string.IsNullOrWhiteSpace(p.Pregunta)))
+        {
+            Snackbar.Add("Todas las preguntas deben tener texto", Severity.Warning);
+            return;
+        }
+
+        var preguntasDto = preguntas
+            // Todas Sí/No: una pregunta de texto de antes pasa a Sí/No al guardar el checklist.
+            .Select(p => new CreatePreguntaChecklistDto { Pregunta = p.Pregunta, TipoRespuesta = TiposRespuesta.SiNo, Obligatoria = p.Obligatoria })
+            .ToList();
+
+        if (IsEditMode && Checklist != null)
+        {
+            // Fase 4 (§3.3): modificar un checklist pide motivo, que queda en la auditoría.
+            var motivo = await MotivoDialog.PedirAsync(DialogService, "Modificar checklist",
+                $"Indique por qué modifica el checklist «{nombre}».", "Guardar", Color.Primary);
+            if (motivo is null)
+            {
+                return;
+            }
+
+            var updateDto = new UpdateChecklistDto
+            {
+                Motivo = motivo,
+                Nombre = nombre,
+                Version = version,
+                Activo = activo,
+                Preguntas = preguntasDto
+            };
+
+            var result = await HttpClientService.UpdateChecklistAsync(Checklist.IdChecklist, updateDto);
+
+            if (result != null && result.Success)
+            {
+                Snackbar.Add("Checklist actualizado exitosamente", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add(result?.Message ?? "Error al actualizar checklist", Severity.Error);
+            }
+        }
+        else
+        {
+            var createDto = new CreateChecklistDto
+            {
+                Nombre = nombre,
+                Version = version,
+                Preguntas = preguntasDto
+            };
+
+            var result = await HttpClientService.CreateChecklistAsync(createDto);
+
+            if (result != null && result.Success)
+            {
+                Snackbar.Add("Checklist creado exitosamente", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else if (result?.CodigoHttp == 409)
+            {
+                // F-12: ya existe un checklist activo con ese nombre (B-05). Se ofrece su «Nueva versión».
+                await OfrecerNuevaVersionAsync(result.Message);
+            }
+            else
+            {
+                Snackbar.Add(result?.Message ?? "Error al crear checklist", Severity.Error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// F-12: el nombre ya lo tiene un checklist activo. Muestra el mensaje del API y ofrece
+    /// crear una nueva versión de ese checklist en lugar de uno repetido.
+    /// </summary>
+    private async Task OfrecerNuevaVersionAsync(string mensajeApi)
+    {
+        var existente = await BuscarActivoConNombreAsync(nombre);
+        if (existente == null)
+        {
+            // No se encontró (por ejemplo, otro usuario lo desactivó): solo se muestra el mensaje.
+            Snackbar.Add(mensajeApi, Severity.Warning);
+            return;
+        }
+
+        var parametros = new DialogParameters
+        {
+            ["Message"] = $"{mensajeApi}. ¿Quiere crear una nueva versión de «{existente.Nombre}» " +
+                          $"(versión {existente.Version})? Se copiarán sus preguntas actuales; " +
+                          "las que escribió aquí no se guardan."
+        };
+        var confirmacion = await DialogService.ShowAsync<ConfirmDialog>("Ya existe un checklist con ese nombre", parametros);
+        var respuesta = await confirmacion.Result;
+        if (respuesta is null || respuesta.Canceled)
+        {
+            return; // Sigue en el formulario para cambiar el nombre.
+        }
+
+        var dialogo = await DialogService.ShowAsync<NuevaVersionChecklistDialog>("Nueva Versión",
+            new DialogParameters { ["Checklist"] = existente });
+        var resultado = await dialogo.Result;
+        if (resultado is not null && !resultado.Canceled)
+        {
+            // La versión nueva ya se creó: se cierra el formulario y la lista se recarga.
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+
+    /// <summary>El checklist activo con el mismo nombre, sin distinguir mayúsculas ni espacios (como B-05).</summary>
+    private async Task<ChecklistDto?> BuscarActivoConNombreAsync(string nombreBuscado)
+    {
+        var buscado = nombreBuscado.Trim();
+        var respuesta = await HttpClientService.GetChecklistsAsync(1, 100, buscado);
+        return respuesta?.Data?.Data?.FirstOrDefault(c =>
+            c.Activo && string.Equals(c.Nombre.Trim(), buscado, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task Cancel()
+    {
+        var parameters = new DialogParameters { ["Message"] = "¿Realmente desea cancelar?" };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirmar Cancelación", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            MudDialog.Cancel();
+        }
+    }
+
+    private class PreguntaFormItem
+    {
+        public string Pregunta { get; set; } = string.Empty;
+        public string TipoRespuesta { get; set; } = string.Empty;
+        public bool Obligatoria { get; set; }
+    }
+}
+
+<style>
+.dialog-button {
+    border-radius: 12px !important;
+    min-width: 100px !important;
+    font-weight: 500 !important;
+}
+
+.dialog-button.mud-button-filled {
+    background-color: var(--primary) !important;
+    color: white !important;
+}
+
+.dialog-button.mud-button-filled:hover {
+    background-color: var(--primary-dark) !important;
+}
+
+.cancel-btn {
+    background-color: var(--secondary) !important;
+    color: white !important;
+}
+
+.cancel-btn:hover {
+    background-color: var(--secondary-dark) !important;
+}
+
+.pregunta-row {
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    background-color: var(--background) !important;
+}
+</style>

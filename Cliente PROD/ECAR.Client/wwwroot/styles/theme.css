@@ -1,0 +1,987 @@
+/* ECAR: tokens, base y ajustes de componentes.
+   Los colores son los ORIGINALES de la marca (el azul #397FDE de la barra y los botones, el azul #2A5FB8 del menú,
+   el verde #79B75D y los grises de siempre): aquí solo se retoca la forma, no el color. Los colores de MudBlazor
+   salen de TemaEcar (Layout/TemaEcar.cs); aquí van los derivados que MudBlazor no tiene (tintes, sombras). */
+:root {
+    --primary: #397FDE;
+    --primary-dark: #2A5FB8;
+    --primary-light: #6BA0E6;
+    --primary-tint: #E9F1FC;
+    --secondary: #79B75D;
+    --secondary-light: #96C982;
+    --secondary-dark: #5A9144;
+    --secondary-tint: #EEF6EA;
+    --info: #17A2B8;
+    --success: #28A745;
+    --warning: #FFC107;
+    --error: #DC3545;
+    /* Botones de acciones destructivas y de cuidado: oscuros para que el texto blanco se lea (contraste ≥ 4,5). */
+    --boton-peligro: #C62828;
+    --boton-peligro-oscuro: #A31F1F;
+    --boton-cuidado: #B35400;
+    --boton-cuidado-oscuro: #8C4100;
+    --titulo: #16438C;
+    --ink: #424242;
+    --text-primary: #16438C;
+    --text-secondary: #5A6A7C;
+    --background: #F4F5F7;
+    --surface: #FFFFFF;
+    --border: #E0E6ED;
+    --border-soft: #E8ECF1;
+    --radio: 10px;
+    --radio-grande: 14px;
+    --sombra-1: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.07);
+    --sombra-2: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 20px rgba(0, 0, 0, 0.08);
+    --sombra-3: 0 4px 8px rgba(0, 0, 0, 0.06), 0 20px 48px rgba(0, 0, 0, 0.16);
+    /* Tintes de estado (fondo, borde y texto), con contraste ≥ 4,5 entre texto y fondo. */
+    --tinte-exito-fondo: #E6F4EA;
+    --tinte-exito-borde: #B9DEC4;
+    --tinte-exito-texto: #1E6B3A;
+    --tinte-aviso-fondo: #FFF1DF;
+    --tinte-aviso-borde: #F2CFA3;
+    --tinte-aviso-texto: #8C4100;
+    --tinte-error-fondo: #FDECEC;
+    --tinte-error-borde: #F2B8B8;
+    --tinte-error-texto: #A31F1F;
+    --tinte-info-fondo: #E3F4F8;
+    --tinte-info-borde: #B2DCE6;
+    --tinte-info-texto: #0B6477;
+}
+
+html {
+    background-color: var(--background);
+}
+
+body {
+    font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    background-color: var(--background);
+    color: var(--ink);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* Lo que pone el navegador y no dibujamos: selección, cursor de texto, barras de desplazamiento y foco. */
+::selection {
+    background-color: var(--primary-tint);
+    color: var(--ink);
+}
+
+input,
+textarea {
+    caret-color: var(--primary);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #B8BFCA transparent;
+}
+
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Los campos de MudBlazor ya marcan su foco con el borde; el contorno doble sobraba. */
+.mud-input-control input:focus-visible,
+.mud-input-control textarea:focus-visible {
+    outline: none;
+}
+
+/* Cifras alineadas en columna: tablas, indicadores y paginación. */
+.mud-table,
+.mud-simple-table,
+.mud-pagination {
+    font-variant-numeric: tabular-nums;
+}
+
+.mud-text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+/* ---------- Botones ----------
+   Los colores son los de siempre: todo botón lleno es del azul de la marca, salvo los de peligro (rojo oscuro) y
+   los de cuidado (naranja oscuro), para que el texto blanco se lea. Aquí solo se retoca la forma: un brillo suave
+   arriba que da volumen, una sombra del color del botón al pasar el cursor, tamaños parejos y los botones neutros
+   (los de Color.Default) como acciones secundarias, claras y con borde, para que «Filtrar» y «Limpiar» no pesen igual. */
+.mud-button-root {
+    border-radius: var(--radio);
+    text-transform: none;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.18s ease, color 0.15s ease,
+        transform 0.15s ease;
+}
+
+.mud-button-root .mud-button-icon-start {
+    margin-right: 8px;
+    margin-left: -2px;
+}
+
+.mud-button-root .mud-button-icon-end {
+    margin-left: 8px;
+    margin-right: -2px;
+}
+
+/* Tamaños parejos: la misma altura para todos los botones de un mismo tamaño. */
+.mud-button-root.mud-button-filled-size-medium,
+.mud-button-root.mud-button-outlined-size-medium {
+    min-height: 38px;
+    padding: 7px 18px;
+}
+
+.mud-button-root.mud-button-filled-size-small,
+.mud-button-root.mud-button-outlined-size-small {
+    min-height: 32px;
+    padding: 4px 13px;
+    font-size: 0.8125rem;
+}
+
+.mud-button-root.mud-button-filled-size-large,
+.mud-button-root.mud-button-outlined-size-large {
+    min-height: 46px;
+    padding: 10px 24px;
+    font-size: 0.9375rem;
+}
+
+/* En pantallas táctiles (teléfono, tableta) los botones llegan a 44 px de alto, el tamaño recomendado para el dedo. */
+@media (pointer: coarse) {
+    .mud-button-root.mud-button-filled-size-medium,
+    .mud-button-root.mud-button-outlined-size-medium {
+        min-height: 44px;
+    }
+
+    .mud-button-root.mud-button-filled-size-small,
+    .mud-button-root.mud-button-outlined-size-small {
+        min-height: 36px;
+    }
+}
+
+/* ----- Relleno ----- */
+.mud-button-filled {
+    --sombra-boton: rgba(57, 127, 222, 0.42);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Un solo azul para todo botón lleno que no sea de peligro ni de cuidado (así era la aplicación, Fase 5, F-01). */
+.mud-button-filled-primary,
+.mud-button-filled-secondary,
+.mud-button-filled-tertiary,
+.mud-button-filled-info,
+.mud-button-filled-success,
+.mud-button-filled-dark {
+    background-color: var(--primary);
+    color: #FFFFFF;
+}
+
+.mud-button-filled-primary:hover,
+.mud-button-filled-secondary:hover,
+.mud-button-filled-tertiary:hover,
+.mud-button-filled-info:hover,
+.mud-button-filled-success:hover,
+.mud-button-filled-dark:hover {
+    background-color: var(--primary-dark);
+}
+
+.mud-button-filled-error {
+    --sombra-boton: rgba(198, 40, 40, 0.4);
+    background-color: var(--boton-peligro);
+    color: #FFFFFF;
+}
+
+.mud-button-filled-error:hover {
+    background-color: var(--boton-peligro-oscuro);
+}
+
+.mud-button-filled-warning {
+    --sombra-boton: rgba(179, 84, 0, 0.4);
+    background-color: var(--boton-cuidado);
+    color: #FFFFFF;
+}
+
+.mud-button-filled-warning:hover {
+    background-color: var(--boton-cuidado-oscuro);
+}
+
+.mud-button-filled:hover {
+    box-shadow: 0 5px 14px var(--sombra-boton), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.mud-button-filled:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 3px rgba(0, 0, 0, 0.16);
+}
+
+/* Deshabilitado: plano y apagado, sin brillo ni sombra (con el azul de arriba parecía activo). */
+.mud-button-filled:disabled,
+.mud-button-filled.mud-disabled {
+    background-color: var(--mud-palette-action-disabled-background);
+    background-image: none;
+    color: var(--mud-palette-action-disabled);
+    box-shadow: none;
+    transform: none;
+}
+
+/* ----- Neutros (Color.Default): acción secundaria, clara y con borde ----- */
+.mud-button-filled-default {
+    background-color: var(--surface);
+    background-image: none;
+    color: var(--ink);
+    border: 1px solid var(--border);
+    box-shadow: var(--sombra-1);
+}
+
+.mud-button-filled-default:hover {
+    background-color: #F5F6F8;
+    border-color: #C5CCD6;
+    box-shadow: var(--sombra-2);
+}
+
+.mud-button-outlined-default {
+    background-color: var(--surface);
+    color: var(--ink);
+    border-color: var(--border);
+}
+
+.mud-button-outlined-default:hover {
+    background-color: #F5F6F8;
+    border-color: #C5CCD6;
+}
+
+/* ----- Con contorno de color: fondo propio para que se vea sobre el gris de la página ----- */
+.mud-button-outlined-primary {
+    background-color: var(--surface);
+}
+
+.mud-button-outlined-primary:hover {
+    background-color: var(--primary-tint);
+}
+
+.mud-icon-button {
+    border-radius: var(--radio);
+}
+
+/* ----- En las tablas: tonales (fondo suave y texto del color) -----
+   Cuatro botones llenos por fila eran más ruido que la información de la fila. El relleno fuerte queda para las
+   acciones de la tarjeta. Los tonos son los mismos azul, rojo y naranja, en suave. */
+.mud-table td .mud-button-filled {
+    background-image: none;
+    box-shadow: none;
+    transform: none;
+    border: 1px solid transparent;
+}
+
+.mud-table td .mud-button-filled:hover {
+    box-shadow: none;
+    transform: none;
+}
+
+.mud-table td .mud-button-filled-primary,
+.mud-table td .mud-button-filled-secondary,
+.mud-table td .mud-button-filled-tertiary,
+.mud-table td .mud-button-filled-info,
+.mud-table td .mud-button-filled-success,
+.mud-table td .mud-button-filled-dark {
+    background-color: var(--primary-tint);
+    border-color: #CFE0F8;
+    color: var(--primary-dark);
+}
+
+.mud-table td .mud-button-filled-primary:hover,
+.mud-table td .mud-button-filled-secondary:hover,
+.mud-table td .mud-button-filled-tertiary:hover,
+.mud-table td .mud-button-filled-info:hover,
+.mud-table td .mud-button-filled-success:hover,
+.mud-table td .mud-button-filled-dark:hover {
+    background-color: #D6E5FA;
+    border-color: #B5CFF3;
+}
+
+.mud-table td .mud-button-filled-warning {
+    background-color: var(--tinte-aviso-fondo);
+    border-color: var(--tinte-aviso-borde);
+    color: var(--tinte-aviso-texto);
+}
+
+.mud-table td .mud-button-filled-warning:hover {
+    background-color: #FFE3C2;
+}
+
+.mud-table td .mud-button-filled-error {
+    background-color: var(--tinte-error-fondo);
+    border-color: var(--tinte-error-borde);
+    color: var(--tinte-error-texto);
+}
+
+.mud-table td .mud-button-filled-error:hover {
+    background-color: #FBD9D9;
+}
+
+.mud-table td .mud-button-filled-default {
+    background-color: #EFF1F5;
+    border-color: var(--border);
+    color: var(--ink);
+}
+
+.mud-table td .mud-button-filled:disabled,
+.mud-table td .mud-button-filled.mud-disabled {
+    background-color: transparent;
+    border-color: transparent;
+    color: var(--mud-palette-action-disabled);
+}
+
+/* ---------- Botones de icono, selector Galería/Tabla y paginación ---------- */
+
+/* Icono suelto: 40 px en vez de los 48 de MudBlazor (44 en pantallas táctiles), con fondo suave al pasar el cursor. */
+.mud-icon-button {
+    padding: 8px;
+    border-radius: var(--radio);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mud-icon-button.mud-icon-button-edge-start {
+    margin-left: -8px;
+}
+
+.mud-icon-button.mud-icon-button-edge-end {
+    margin-right: -8px;
+}
+
+@media (pointer: coarse) {
+    .mud-icon-button {
+        padding: 10px;
+    }
+}
+
+/* En la barra azul: fondo blanco translúcido al pasar el cursor y foco blanco. */
+.app-bar .mud-icon-button:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.app-bar :focus-visible {
+    outline-color: #FFFFFF;
+}
+
+/* Iconos dentro de un campo (ojo de la contraseña, calendario, limpiar): de 36 px, no de 48 dentro de un campo de
+   56. Gris en reposo; al pasar el cursor, el azul de la marca. */
+.mud-input-adornment .mud-icon-button,
+.mud-icon-button.mud-input-adornment-icon-button {
+    padding: 6px;
+    margin-right: -4px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+}
+
+.mud-input-adornment .mud-icon-button:hover,
+.mud-icon-button.mud-input-adornment-icon-button:hover {
+    background-color: var(--primary-tint);
+    color: var(--primary-dark);
+}
+
+/* ----- Selector Galería / Tabla (MudToggleGroup): un control segmentado, no dos botones pegados ----- */
+.mud-toggle-group.mud-toggle-group-horizontal {
+    gap: 2px;
+    padding: 3px;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radio);
+}
+
+.mud-toggle-group .mud-toggle-item {
+    min-height: 28px;
+    padding: 3px 14px;
+    border: none;
+    border-radius: 7px;
+    background-image: none;
+    box-shadow: none;
+    transform: none;
+}
+
+/* MudBlazor separa los segmentos con una raya gruesa (el «delimitador»): el hueco entre ellos ya los separa. */
+.mud-toggle-group.mud-toggle-group-outlined.mud-toggle-group-horizontal:not(.mud-toggle-group-rtl) > .mud-toggle-item:not(:first-child).mud-toggle-item-delimiter,
+.mud-toggle-group .mud-toggle-item.mud-toggle-item-delimiter {
+    border-left-style: none !important;
+    border-left-width: 0 !important;
+    margin-left: 0 !important;
+}
+
+.mud-toggle-group .mud-toggle-item.mud-button-outlined {
+    background-color: transparent;
+    color: var(--text-secondary);
+}
+
+.mud-toggle-group .mud-toggle-item.mud-button-outlined:hover {
+    background-color: #EFF1F5;
+    color: var(--ink);
+}
+
+.mud-toggle-group .mud-toggle-item.mud-button-filled {
+    background-color: var(--primary);
+    color: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.mud-toggle-group .mud-toggle-item.mud-button-filled:hover {
+    background-color: var(--primary-dark);
+    transform: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ----- Paginación: todos los botones del mismo tamaño (36 px) y sin elevación ----- */
+.mud-pagination .mud-button-root {
+    min-width: 36px;
+    min-height: 36px;
+    height: 36px;
+    padding: 0 8px;
+    border-radius: 8px;
+    background-image: none;
+    box-shadow: none;
+    transform: none;
+}
+
+.mud-pagination .mud-icon-button {
+    width: 36px;
+    padding: 0;
+}
+
+.mud-pagination .mud-button-filled {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.mud-pagination .mud-button-filled:hover {
+    transform: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.mud-pagination .mud-button-text:hover:not(:disabled) {
+    background-color: var(--primary-tint);
+    color: var(--primary-dark);
+}
+
+/* En táctil, los iconos de los campos y la paginación llegan a 40 px. */
+@media (pointer: coarse) {
+    .mud-input-adornment .mud-icon-button,
+    .mud-icon-button.mud-input-adornment-icon-button {
+        padding: 8px;
+    }
+
+    .mud-pagination .mud-button-root {
+        min-width: 40px;
+        min-height: 40px;
+        height: 40px;
+    }
+
+    .mud-pagination .mud-icon-button {
+        width: 40px;
+    }
+}
+
+/* ---------- Ficha de datos: pares «etiqueta: valor» en un recuadro suave (resultado y resumen de firma) ---------- */
+.ficha-datos {
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    background-color: var(--background);
+    border-radius: var(--radio-grande);
+}
+
+.ficha-datos b {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* ---------- Firma: la guía sobre el lienzo desaparece en cuanto hay un trazo ---------- */
+.firma-lienzo {
+    position: relative;
+    max-width: 100%;
+    line-height: 0;
+}
+
+.firma-guia {
+    position: absolute;
+    left: 28px;
+    right: 28px;
+    bottom: 44px;
+    border-bottom: 1px dashed #B8BFCA;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.firma-guia span {
+    display: block;
+    padding-bottom: 6px;
+    font-size: 0.8125rem;
+    color: #9AA3B0;
+}
+
+.firma-lienzo:has(canvas[data-tiene-trazo="true"]) .firma-guia {
+    display: none;
+}
+
+/* ---------- Zona de subida de fotografías (paso Evidencias): un recuadro de borde punteado, no una barra azul ---------- */
+.mud-button-root.subir-foto {
+    width: 100%;
+    min-height: 96px;
+    background-color: var(--primary-tint);
+    background-image: none;
+    color: var(--primary-dark);
+    border: 2px dashed #9FC0F0;
+    box-shadow: none;
+    transform: none;
+}
+
+.mud-button-root.subir-foto .mud-button-label {
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mud-button-root.subir-foto .mud-button-icon-start {
+    margin: 0;
+}
+
+.mud-button-root.subir-foto .mud-button-icon-start .mud-icon-root {
+    font-size: 2rem;
+}
+
+.mud-button-root.subir-foto:hover:not(:disabled) {
+    background-color: #D6E5FA;
+    border-color: var(--primary);
+    box-shadow: none;
+    transform: none;
+}
+
+/* ---------- Resultado de la inspección: las secciones se distinguen ---------- */
+.resultado-print-area .mud-typography-subtitle2 {
+    margin-top: 1.5rem;
+    padding-bottom: 6px;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 0.9375rem;
+    color: var(--titulo);
+}
+
+.resultado-print-area .mud-paper .mud-typography-subtitle2 {
+    margin-top: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+    color: var(--primary-dark);
+}
+
+/* ---------- Chips: tonales, no solo con contorno ---------- */
+.mud-chip {
+    font-weight: 500;
+}
+
+.mud-chip.mud-chip-outlined {
+    border-width: 1px;
+}
+
+.mud-chip-outlined.mud-chip-color-success {
+    background-color: var(--tinte-exito-fondo);
+    border-color: var(--tinte-exito-borde);
+    color: var(--tinte-exito-texto);
+}
+
+.mud-chip-outlined.mud-chip-color-warning {
+    background-color: var(--tinte-aviso-fondo);
+    border-color: var(--tinte-aviso-borde);
+    color: var(--tinte-aviso-texto);
+}
+
+.mud-chip-outlined.mud-chip-color-error {
+    background-color: var(--tinte-error-fondo);
+    border-color: var(--tinte-error-borde);
+    color: var(--tinte-error-texto);
+}
+
+.mud-chip-outlined.mud-chip-color-info {
+    background-color: var(--tinte-info-fondo);
+    border-color: var(--tinte-info-borde);
+    color: var(--tinte-info-texto);
+}
+
+.mud-chip-outlined.mud-chip-color-primary {
+    background-color: var(--primary-tint);
+    border-color: #BFD3F1;
+    color: var(--primary-dark);
+}
+
+.mud-chip-outlined.mud-chip-color-default {
+    background-color: #EFF1F5;
+    border-color: var(--border);
+    color: var(--text-secondary);
+}
+
+/* ---------- Tarjetas y paneles ---------- */
+.mud-card,
+.mud-paper.mud-elevation-1,
+.mud-paper.mud-elevation-2 {
+    border-radius: var(--radio-grande);
+}
+
+.mud-card {
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--sombra-1);
+}
+
+.mud-paper.mud-elevation-1,
+.mud-paper.mud-elevation-2 {
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--sombra-1);
+}
+
+.mud-card-header {
+    padding: 20px 24px 8px;
+}
+
+.mud-card-content {
+    padding: 8px 24px 24px;
+}
+
+.mud-card-header .mud-card-header-content .mud-typography-h5,
+.mud-card-header .mud-card-header-content .mud-typography-h6 {
+    line-height: 1.25;
+}
+
+/* ---------- Tablas ---------- */
+.mud-table {
+    background-color: transparent;
+}
+
+.mud-table .mud-table-head .mud-table-cell {
+    background-color: #F5F6F8;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.mud-table .mud-table-body .mud-table-cell {
+    border-bottom: 1px solid var(--border-soft);
+    color: var(--ink);
+}
+
+.mud-table .mud-table-body .mud-table-row:last-child .mud-table-cell {
+    border-bottom: none;
+}
+
+.mud-table .mud-table-head .mud-table-cell:first-child {
+    border-top-left-radius: var(--radio);
+}
+
+.mud-table .mud-table-head .mud-table-cell:last-child {
+    border-top-right-radius: var(--radio);
+}
+
+.mud-simple-table table thead th {
+    background-color: #F5F6F8;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* ---------- Campos ---------- */
+.mud-input-outlined .mud-input-outlined-border {
+    border-color: #B8BFCA;
+    transition: border-color 0.15s ease, border-width 0.15s ease;
+}
+
+.mud-input-outlined:hover:not(.mud-disabled):not(.mud-input-error) .mud-input-outlined-border {
+    border-color: #7C8696;
+}
+
+.mud-input-label {
+    color: var(--text-secondary);
+}
+
+.mud-input-helper-text {
+    color: var(--text-secondary);
+}
+
+/* ---------- Diálogos, avisos y menús ---------- */
+/* Los botones de los diálogos: cada modal trae su propio CSS (.dialog-button) y «Cancelar» (.cancel-btn) acababa
+   igual que «Guardar», los dos azules. «Cancelar» pasa a secundario: sin relleno y con borde. */
+.mud-dialog .dialog-button.cancel-btn.mud-button-filled {
+    background-color: transparent !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--border);
+    box-shadow: none;
+}
+
+.mud-dialog .dialog-button.cancel-btn.mud-button-filled:hover {
+    background-color: #EFF1F5 !important;
+}
+
+.mud-overlay-dialog .mud-overlay-scrim,
+.mud-overlay-dialog.mud-overlay-scrim {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.mud-dialog {
+    border-radius: 18px;
+    box-shadow: var(--sombra-3);
+}
+
+.mud-dialog .mud-dialog-title {
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.mud-dialog .mud-dialog-title + .mud-dialog-content {
+    padding-top: 20px;
+}
+
+/* El pie con los botones: franja clara aparte, para que no parezcan parte del formulario. */
+.mud-dialog .mud-dialog-actions {
+    padding: 14px 24px;
+    gap: 8px;
+    background-color: #F8F9FB;
+    border-top: 1px solid var(--border-soft);
+    border-radius: 0 0 18px 18px;
+}
+
+/* Formularios sencillos (usuario, ubicación, categoría, rol): sin ancho propio se encogían a lo que midiera su
+   contenido, unos 300 px. Los de más campos (equipo, checklist, inspección) ya se ensanchan solos. */
+@media (min-width: 601px) {
+    .mud-dialog.form-compacto {
+        width: 460px;
+    }
+}
+
+.mud-alert {
+    border-radius: var(--radio);
+}
+
+.mud-snackbar {
+    border-radius: var(--radio);
+    box-shadow: var(--sombra-2);
+}
+
+/* Los avisos salen debajo de la barra azul, no encima del usuario y del botón de salir. */
+.mud-snackbar-location-top-right {
+    top: calc(var(--mud-appbar-height, 64px) + 12px);
+}
+
+.mud-popover.mud-popover-open {
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--sombra-2);
+}
+
+.mud-list-item.mud-list-item-clickable:hover {
+    background-color: var(--primary-tint);
+}
+
+.mud-list-item.mud-selected-item {
+    background-color: var(--primary-tint);
+    color: var(--primary-dark);
+    font-weight: 500;
+}
+
+/* ---------- Paginación, pestañas y barras ---------- */
+.mud-tabs-tabbar {
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.mud-tab {
+    text-transform: none;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--text-secondary);
+    border-radius: 8px 8px 0 0;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mud-tab:hover:not(.mud-tab-active) {
+    background-color: #F5F6F8;
+    color: var(--ink);
+}
+
+.mud-tab-slider {
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+}
+
+.mud-tab.mud-tab-active {
+    color: var(--primary-dark);
+}
+
+.mud-progress-linear {
+    border-radius: 999px;
+}
+
+/* Indicador de pasos de la ejecución (MudStepper) en el teléfono: con los tres pasos completos medía 456 px, no
+   cabía en 375 px, se desplazaba con una barra gris y «Firma» quedaba fuera de pantalla. Por debajo de 600 px solo
+   el paso actual lleva texto; los demás, su número (el texto sigue en la página para los lectores de pantalla). */
+@media (max-width: 599.98px) {
+    .mud-stepper-nav {
+        overflow-x: hidden;
+        gap: 4px;
+    }
+
+    .mud-stepper-nav .mud-step:not(.active) .mud-step-label-content {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    .mud-stepper-nav .mud-stepper-nav-connector {
+        min-width: 12px;
+    }
+}
+
+/* Tablas con botones (MudTable): la columna de los botones lleva Class="col-acciones" en su MudTh
+   y en su MudTd. Mientras se ve como tabla, esa columna queda fija a la derecha: si las demás no
+   caben, se desplazan por debajo y los botones siguen a la vista. Cuando la tabla se apila (por
+   debajo del Breakpoint de cada MudTable: Xs ≤600, Sm ≤960, Md ≤1280 px), la celda vuelve a su
+   sitio y los botones bajan de línea en vez de ensanchar la página. */
+.mud-table-container .col-acciones {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background-color: var(--mud-palette-surface);
+    box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.3);
+}
+
+.mud-table-striped .mud-table-container tbody tr:nth-of-type(odd) > .col-acciones {
+    background-image: linear-gradient(var(--mud-palette-table-striped), var(--mud-palette-table-striped));
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .mud-table-hover .mud-table-container tbody tr:hover > .col-acciones {
+        background-image: linear-gradient(var(--mud-palette-table-hover), var(--mud-palette-table-hover));
+    }
+}
+
+/* Tablas con muchas columnas: menos relleno lateral en cada celda (MudBlazor pone 16 px a la izquierda y,
+   en las densas, 24 a la derecha) para que quepan en el ancho de la tarjeta sin desplazarse en horizontal
+   (M-02, M-03, M-05). Se activa con Class="tabla-compacta". */
+.mud-table.tabla-compacta .mud-table-cell {
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+/* Cada botón en una sola línea: la columna toma el ancho del botón más largo y no parte «Ver resultado». */
+td.col-acciones .mud-button-root {
+    margin: 2px;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .mud-xs-table .mud-table-container .col-acciones {
+        position: static;
+        box-shadow: none;
+        background: none !important;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 4px;
+    }
+}
+
+@media (max-width: 960px) {
+    .mud-sm-table .mud-table-container .col-acciones {
+        position: static;
+        box-shadow: none;
+        background: none !important;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 4px;
+    }
+}
+
+@media (max-width: 1280px) {
+    .mud-md-table .mud-table-container .col-acciones {
+        position: static;
+        box-shadow: none;
+        background: none !important;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 4px;
+    }
+}
+
+/* En el teléfono todos los diálogos usan casi todo el ancho: con FullWidth, MudBlazor les deja
+   32 px de margen a cada lado, y en 375 px eso es la sexta parte de la pantalla. */
+@media (max-width: 600px) {
+    .mud-dialog-container .mud-dialog {
+        width: calc(100% - 16px);
+        max-width: calc(100% - 16px) !important;
+    }
+}
+
+/* Los botones de un diálogo bajan de línea cuando no caben: MudBlazor los deja en una sola fila y, a 375 px,
+   «Descargar PNG» y «Regenerar» del diálogo del QR se cortaban dentro de su botón (M-06). */
+.mud-dialog .mud-dialog-actions {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+/* Miniaturas de evidencias que se abren en grande (29/10/2026, VisorImagenDialog). Botón para que
+   también se abran con el teclado. */
+.miniatura-ampliable {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: zoom-in;
+}
+
+.miniatura-ampliable:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+/* El visor: la imagen ajustada al recuadro; con zoom se mueve arrastrando (visor-imagen.js). */
+.visor-imagen {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 70vh;
+    overflow: hidden;
+    background: var(--background);
+    border-radius: 4px;
+    touch-action: none;
+    user-select: none;
+    cursor: zoom-in;
+}
+
+.visor-imagen.acercada {
+    cursor: grab;
+}
+
+.visor-imagen.acercada.arrastrando {
+    cursor: grabbing;
+}
+
+.visor-imagen img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transform-origin: center center;
+    pointer-events: none;
+}
+
+.visor-titulo {
+    overflow-wrap: anywhere;
+}
+
+/* Textos de una sola palabra larga, como los nombres de las fotos del teléfono
+   (IMG_20261029_143000_….png): sin esto ensanchaban la tarjeta y la página a 375 px. */
+.texto-partible {
+    overflow-wrap: anywhere;
+}
+
+/* En el teléfono el visor deja sitio al título y a los botones dentro de la pantalla. */
+@media (max-width: 600px) {
+    .visor-imagen {
+        height: 50vh;
+    }
+}

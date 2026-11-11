@@ -1,0 +1,66 @@
+using ECAR.Infrastructure.Data;
+using ECAR.Shared;
+using Microsoft.EntityFrameworkCore;
+
+namespace ECAR.API.Services;
+
+/// <summary>Situación de una inspección frente a una escritura (respuestas, evidencias, firma).</summary>
+public enum EstadoEscritura
+{
+    /// <summary>La inspección no existe: responder 404 o 400 según el endpoint.</summary>
+    NoExiste,
+
+    /// <summary>La inspección admite escrituras.</summary>
+    EnCurso,
+
+    /// <summary>La inspección está firmada (cerrada o con novedades pendientes): responder 409 (regla 6 del SRS).</summary>
+    Cerrada,
+
+    /// <summary>La inspección está anulada: responder 409; conserva sus datos tal como estaban (§3.6).</summary>
+    Anulada
+}
+
+/// <summary>
+/// Guarda de inmutabilidad compartida (regla 6 del SRS). Cualquier endpoint que escriba sobre
+/// una inspección —respuestas (BE-1), evidencias (BE-2) o la firma (BE-3)— consulta aquí antes
+/// de tocar nada, para que la regla viva en un solo sitio y no se repita en cada controlador.
+/// </summary>
+public static class InmutabilidadInspeccion
+{
+    /// <summary>Mensaje único de rechazo, para que el cliente reciba siempre el mismo texto.</summary>
+    public const string MensajeCerrada = "La inspección está cerrada y no admite modificaciones";
+
+    /// <summary>Mismo rechazo para una inspección anulada.</summary>
+    public const string MensajeAnulada = "La inspección está anulada y no admite modificaciones";
+
+    /// <summary>
+    /// El mensaje del 409 si la inspección en <paramref name="estado"/> ya no admite cambios
+    /// (firmada o anulada), o null si sigue en curso. Una con novedades pendientes ya está firmada:
+    /// lo que falta se hace en sus novedades, no en la inspección.
+    /// </summary>
+    public static string? MensajeSiNoAdmiteCambios(string estado) => estado switch
+    {
+        InspeccionEstados.Cerrada or InspeccionEstados.NovedadesPendientes => MensajeCerrada,
+        InspeccionEstados.Anulada => MensajeAnulada,
+        _ => null
+    };
+
+    /// <summary>Lee solo el estado de la inspección, sin traer el resto de la fila.</summary>
+    public static async Task<EstadoEscritura> ObtenerEstadoEscrituraAsync(
+        this ECARDbContext context, long idInspeccion)
+    {
+        var estado = await context.Inspecciones
+            .AsNoTracking()
+            .Where(i => i.IdInspeccion == idInspeccion)
+            .Select(i => i.Estado)
+            .FirstOrDefaultAsync();
+
+        return estado switch
+        {
+            null => EstadoEscritura.NoExiste,
+            InspeccionEstados.Cerrada or InspeccionEstados.NovedadesPendientes => EstadoEscritura.Cerrada,
+            InspeccionEstados.Anulada => EstadoEscritura.Anulada,
+            _ => EstadoEscritura.EnCurso
+        };
+    }
+}

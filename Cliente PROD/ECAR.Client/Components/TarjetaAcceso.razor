@@ -1,0 +1,90 @@
+@* Tarjeta de las pantallas que abre el login cuando SGI.Identity lo pide (cambiar la contraseña vencida, activar la
+   cuenta): el mismo aspecto que el login, con el logo, sin barra ni menú (MainLayout.EsLogin). *@
+
+<MudContainer MaxWidth="MaxWidth.False" Class="acceso-container">
+    <MudPaper Class="acceso-paper" Elevation="8">
+        <div class="acceso-logo">
+            <img src="images/logo-ecar.png" alt="ECAR Laboratorios" class="acceso-logo-imagen" />
+            <MudText Typo="Typo.h5" Class="acceso-titulo">@Titulo</MudText>
+            @if (!string.IsNullOrWhiteSpace(Subtitulo))
+            {
+                <MudText Typo="Typo.body2" Class="acceso-subtitulo">@Subtitulo</MudText>
+            }
+        </div>
+
+        <MudDivider Class="my-4" />
+
+        @ChildContent
+    </MudPaper>
+</MudContainer>
+
+<style>
+.acceso-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.acceso-paper {
+    max-width: 460px;
+    width: 100%;
+    padding: 2.25rem 2.25rem 2rem;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--sombra-3);
+}
+
+.acceso-logo {
+    text-align: center;
+}
+
+.acceso-logo-imagen {
+    height: 88px;
+    width: 88px;
+    margin-bottom: 0.5rem;
+}
+
+.acceso-titulo {
+    color: var(--titulo);
+    font-weight: 700;
+}
+
+.acceso-subtitulo {
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.acceso-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.acceso-boton {
+    height: 48px;
+    font-size: 1rem;
+    font-weight: 500;
+    border-radius: 12px !important;
+}
+
+@@media (max-width: 480px) {
+    .acceso-paper {
+        padding: 1.75rem 1.25rem 1.5rem;
+        border-radius: 16px;
+    }
+
+    .acceso-logo-imagen {
+        height: 72px;
+        width: 72px;
+    }
+}
+</style>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Subtitulo { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

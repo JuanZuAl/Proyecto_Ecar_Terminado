@@ -1,0 +1,97 @@
+@* Detalle de una fila de auditoría: quién, cuándo, desde dónde, por qué, qué cambió y, si la
+   fila es de un registro (no un evento de "Sistema"), todo su historial. *@
+
+<MudDialog Options="Opciones">
+    <DialogContent>
+        @if (Registro != null)
+        {
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6" sm="4">
+                    <MudText Typo="Typo.caption">Fecha y hora</MudText>
+                    <MudText Typo="Typo.body2">@FormatoAuditoria.FechaHora(Registro.FechaHora)</MudText>
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudText Typo="Typo.caption">Acción</MudText>
+                    <div>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                            Color="@FormatoAuditoria.ColorAccion(Registro.Accion)" Text="@FormatoAuditoria.NombreAccion(Registro.Accion)" />
+                    </div>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption">Registro</MudText>
+                    <MudText Typo="Typo.body2">@Registro.Tabla #@Registro.RegistroId</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption">Usuario</MudText>
+                    <MudText Typo="Typo.body2">@Registro.Usuario</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption">Dirección IP</MudText>
+                    <MudText Typo="Typo.body2">@(Registro.DireccionIp ?? "—")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption">Navegador</MudText>
+                    <MudText Typo="Typo.body2" Style="word-break: break-word;">@(Registro.AgenteUsuario ?? "—")</MudText>
+                </MudItem>
+                @if (!string.IsNullOrWhiteSpace(Registro.Motivo))
+                {
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.caption">Motivo</MudText>
+                        <MudText Typo="Typo.body2">@Registro.Motivo</MudText>
+                    </MudItem>
+                }
+                @if (!string.IsNullOrWhiteSpace(Registro.Hash))
+                {
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.caption">Huella de la fila (SHA-256, encadenada)</MudText>
+                        <MudText Typo="Typo.body2"><code style="word-break: break-all;">@Registro.Hash</code></MudText>
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Cambios</MudText>
+            <CambiosAuditoria Registro="Registro" />
+
+            @if (Registro.Tabla != AuditoriaTablas.Sistema)
+            {
+                <div class="mt-4">
+                    @if (verHistorial)
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-1">Historial de @Registro.Tabla #@Registro.RegistroId</MudText>
+                        <HistorialCambiosRegistro Tabla="@Registro.Tabla" RegistroId="@Registro.RegistroId" />
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.History"
+                            OnClick="@(() => verHistorial = true)">
+                            Ver todo el historial de este registro
+                        </MudButton>
+                    }
+                </div>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    // MudBlazor 9 solo aplica las Options de <MudDialog> a los diálogos en línea: abierto con
+    // DialogService salía con el ancho pequeño (600 px). Se aplican al abrirse.
+    private static readonly DialogOptions Opciones = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+
+    protected override Task OnInitializedAsync() => MudDialog.SetOptionsAsync(Opciones);
+
+    [Parameter]
+    public AuditoriaDto? Registro { get; set; }
+
+    private bool verHistorial;
+
+    private void Close()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

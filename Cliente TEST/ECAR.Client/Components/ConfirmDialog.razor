@@ -1,0 +1,47 @@
+<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }">
+    <DialogContent>
+        <MudText Typo="Typo.body1">@Message</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="confirm-button">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Confirm" Class="confirm-button">Confirmar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}
+
+@* F-11: clase propia (confirm-button) en lugar de dialog-button y cancel-btn. Los <style> de otros
+   modales se aplican a toda la página mientras están abiertos, y pintaban estos botones de azul
+   o de verde. Así los colores los decide el tema: Confirmar (Error) rojo, Cancelar azul. *@
+<style>
+.confirm-button {
+    border-radius: 12px !important;
+    min-width: 100px !important;
+    font-weight: 500 !important;
+}
+
+.confirm-button.mud-button-outlined {
+    background-color: white !important;
+    color: var(--primary) !important;
+    border-color: var(--primary) !important;
+}
+
+.confirm-button.mud-button-outlined:hover {
+    background-color: rgba(57, 127, 222, 0.1) !important;
+}
+</style>

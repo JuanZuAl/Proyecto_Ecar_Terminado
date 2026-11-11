@@ -1,0 +1,234 @@
+﻿using ECAR.Infrastructure.Data;
+using ECAR.Infrastructure.Entities;
+using ECAR.Shared;
+using ECAR.Shared.DTOs;
+using ECAR.API.Exceptions;
+using Microsoft.EntityFrameworkCore;
+
+namespace ECAR.API.Services;
+
+public class InspeccionService : IInspeccionService
+{
+    private readonly ECARDbContext _context;
+
+    public InspeccionService(ECARDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task GuardarRespuestasAsync(long inspeccionId, GuardarRespuestasDto dto, long usuarioId, bool esAdmin)
+    {
+        var inspeccion = await _context.Inspecciones
+            .Include(i => i.Checklist)
+                .ThenInclude(c => c.Preguntas)
+            .Include(i => i.Respuestas)
+            .FirstOrDefaultAsync(i => i.IdInspeccion == inspeccionId);
+
+        if (inspeccion == null)
+        {
+            throw new KeyNotFoundException($"No se encontró la inspección con ID {inspeccionId}");
+        }
+
+        // Punto 7: solo quien ejecuta la inspección o el Administrador
+        if (!esAdmin && inspeccion.IdUsuario != usuarioId)
+        {
+            throw new UnauthorizedAccessException("No tiene permiso para modificar esta inspección.");
+        }
+
+        // Punto 6: 409 Conflict si la inspección no está 'En curso'
+        if (inspeccion.Estado != InspeccionEstados.EnCurso)
+        {
+            throw new InspeccionCerradaException(inspeccion.Estado == InspeccionEstados.Anulada
+                ? InmutabilidadInspeccion.MensajeAnulada
+                : "La inspección está cerrada y no permite modificaciones.");
+        }
+
+        var preguntasValidas = inspeccion.Checklist.Preguntas.ToDictionary(p => p.IdPregunta);
+
+        foreach (var item in dto.Respuestas)
+        {
+            // Punto 3: Validar que pertenezca al checklist de la inspección
+            if (!preguntasValidas.TryGetValue(item.IdPregunta, out var pregunta))
+            {
+                throw new ArgumentException($"La pregunta con ID {item.IdPregunta} no pertenece al checklist de esta inspección.");
+            }
+
+            // Una respuesta vacía se guarda como pendiente (null), también en las obligatorias.
+            // El guardado es parcial: el técnico puede escribir la observación antes de
+            // responder, desmarcar una casilla o borrar un texto, y en los tres casos el cliente
+            // envía la respuesta vacía junto con la observación. Rechazarlo aquí perdía la
+            // observación. Que las obligatorias estén respondidas se exige al firmar (SRS #3),
+            // que ya trata una respuesta vacía como "sin responder" y devuelve la lista.
+            var valor = string.IsNullOrWhiteSpace(item.Respuesta) ? null : item.Respuesta.Trim();
+
+            // Punto 4: Para preguntas SiNo, aceptar únicamente "Si" o "No"
+            if (pregunta.TipoRespuesta == TiposRespuesta.SiNo && valor != null)
+            {
+                if (!string.Equals(valor, "Si", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(valor, "No", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException($"Respuesta inválida para la pregunta Si/No '{pregunta.Pregunta}'. Debe ser 'Si' o 'No'.");
+                }
+            }
+
+            var respuestaExistente = inspeccion.Respuestas.FirstOrDefault(r => r.IdPregunta == item.IdPregunta);
+
+            // «¿Presenta novedad?» (29/10/2026) se guarda con la respuesta: es lo que decide la novedad al firmar.
+            if (respuestaExistente != null)
+            {
+                respuestaExistente.Respuesta = valor;
+                respuestaExistente.Observacion = item.Observacion;
+                respuestaExistente.PresentaNovedad = item.PresentaNovedad;
+            }
+            else
+            {
+                inspeccion.Respuestas.Add(new RespuestaInspeccion
+                {
+                    IdInspeccion = inspeccionId,
+                    IdPregunta = item.IdPregunta,
+                    Respuesta = valor,
+                    Observacion = item.Observacion,
+                    PresentaNovedad = item.PresentaNovedad
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    // Punto 1 y 7: GET /api/inspecciones/{id}/respuestas con la regla de lectura de AccesoInspeccion
+    public async Task<List<RespuestaInspeccionDto>> ObtenerRespuestasAsync(long inspeccionId, long usuarioId, bool leeTodas)
+    {
+        var inspeccion = await _context.Inspecciones
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.IdInspeccion == inspeccionId);
+
+        if (inspeccion == null)
+        {
+            throw new KeyNotFoundException($"No se encontró la inspección con ID {inspeccionId}");
+        }
+
+        // El Operador, las de sus inspecciones
+        if (!leeTodas && inspeccion.IdUsuario != usuarioId)
+        {
+            throw new UnauthorizedAccessException("No tiene permiso para consultar las respuestas de esta inspección.");
+        }
+
+        return await _context.RespuestasInspeccion
+            .AsNoTracking()
+            .Where(r => r.IdInspeccion == inspeccionId)
+            .Select(r => new RespuestaInspeccionDto
+            {
+                IdRespuesta = r.IdRespuesta,
+                IdInspeccion = r.IdInspeccion,
+                IdPregunta = r.IdPregunta,
+                Respuesta = r.Respuesta ?? string.Empty,
+                Observacion = r.Observacion,
+                PresentaNovedad = r.PresentaNovedad
+            })
+            .ToListAsync();
+    }
+
+    // Punto 2: GET /api/inspecciones/mias?estado=
+    // Sin estado devuelve también las anuladas (se conservan); con estado=EnCurso solo las abiertas.
+    public async Task<List<InspeccionDto>> ObtenerMisInspeccionesAsync(long usuarioId, string? estado)
+    {
+        var query = _context.Inspecciones
+            .AsNoTracking()
+            .Include(i => i.Equipo)
+            .Include(i => i.Usuario)
+            .Include(i => i.Checklist)
+            .Where(i => i.IdUsuario == usuarioId);
+
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            query = query.Where(i => i.Estado == estado);
+        }
+
+        return await query
+            .OrderByDescending(i => i.FechaInspeccion)
+            .Select(i => new InspeccionDto
+            {
+                IdInspeccion = i.IdInspeccion,
+                IdEquipo = i.IdEquipo,
+                NombreEquipo = i.Equipo.NombreEquipo,
+                IdUsuario = i.IdUsuario,
+                NombreUsuario = i.Usuario.Nombre,
+                IdChecklist = i.IdChecklist,
+                NombreChecklist = i.Checklist.Nombre,
+                FechaInspeccion = i.FechaInspeccion,
+                Estado = i.Estado,
+                FechaCierre = i.FechaCierre,
+                Resultado = i.Resultado,
+                Observaciones = i.Observaciones,
+                TieneFirma = !string.IsNullOrEmpty(i.FirmaDigital),
+                TotalEvidencias = i.Evidencias.Count(e => !e.Retirada),
+                TotalNovedades = i.Novedades.Count,
+                NovedadesPendientes = i.Novedades.Count(n => n.Estado == NovedadEstados.Pendiente),
+                MotivoAnulacion = i.MotivoAnulacion,
+                FechaAnulacion = i.FechaAnulacion,
+                IdUsuarioAnulacion = i.IdUsuarioAnulacion,
+                NombreUsuarioAnulacion = i.UsuarioAnulacion != null ? i.UsuarioAnulacion.Nombre : null
+            })
+            .ToListAsync();
+    }
+
+    // Punto 8 y 9: Filtros search, idInspeccion y pageSize máximo 100
+    public async Task<PagedResultDto<RespuestaInspeccionDto>> ObtenerRespuestasPaginadasAsync(
+        int pageNumber, int pageSize, string? search, long? idInspeccion, long usuarioId, bool leeTodas)
+    {
+        // Punto 9: Limitar a máximo 100
+        int size = Math.Clamp(pageSize, 1, 100);
+        int page = pageNumber < 1 ? 1 : pageNumber;
+
+        var query = _context.RespuestasInspeccion
+            .AsNoTracking()
+            .Include(r => r.Inspeccion)
+            .AsQueryable();
+
+        // Punto 7: el Operador, solo las de sus inspecciones
+        if (!leeTodas)
+        {
+            query = query.Where(r => r.Inspeccion.IdUsuario == usuarioId);
+        }
+
+        // Punto 8: Filtro idInspeccion
+        if (idInspeccion.HasValue)
+        {
+            query = query.Where(r => r.IdInspeccion == idInspeccion.Value);
+        }
+
+        // Punto 8: Filtro search
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(r =>
+                (r.Respuesta != null && r.Respuesta.Contains(search)) ||
+                (r.Observacion != null && r.Observacion.Contains(search)));
+        }
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(r => r.IdRespuesta)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .Select(r => new RespuestaInspeccionDto
+            {
+                IdRespuesta = r.IdRespuesta,
+                IdInspeccion = r.IdInspeccion,
+                IdPregunta = r.IdPregunta,
+                Respuesta = r.Respuesta ?? string.Empty,
+                Observacion = r.Observacion,
+                PresentaNovedad = r.PresentaNovedad
+            })
+            .ToListAsync();
+
+        return new PagedResultDto<RespuestaInspeccionDto>
+        {
+            Data = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = size
+        };
+    }
+}

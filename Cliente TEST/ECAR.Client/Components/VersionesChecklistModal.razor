@@ -1,0 +1,140 @@
+@inject IDialogService DialogService
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+
+<MudDialog Options="Opciones">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Versiones de "@Checklist?.Nombre"</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (cargando)
+        {
+            <MudProgressLinear Indeterminate="true" Class="my-4" />
+        }
+        else if (versiones.Any())
+        {
+            <MudTable Items="versiones" Hover="true" Striped="true" Elevation="0" Dense="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Versión</MudTh>
+                    <MudTh>Estado</MudTh>
+                    <MudTh>Preguntas</MudTh>
+                    <MudTh>Fecha Creación</MudTh>
+                    <MudTh Class="col-acciones">Acciones</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="version">
+                    <MudTd DataLabel="Versión">@version.Version</MudTd>
+                    <MudTd DataLabel="Estado">
+                        <MudChip T="string" Color="@(version.Activo ? Color.Success : Color.Default)"
+                            Size="Size.Small" Variant="Variant.Outlined" Text="@(version.Activo ? "Activa" : "Histórica")" />
+                    </MudTd>
+                    <MudTd DataLabel="Preguntas">
+                        @version.TotalPreguntas
+                        @if (version.TieneRespuestas)
+                        {
+                            <MudTooltip Text="Ya se usó en inspecciones: sus preguntas no se pueden modificar">
+                                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Class="ml-1" />
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Fecha Creación">@version.FechaCreacion.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+                    <MudTd DataLabel="Acciones" Class="col-acciones">
+                        <MudButton Size="Size.Small" Color="Color.Info" Variant="Variant.Filled"
+                            StartIcon="@Icons.Material.Filled.Visibility" OnClick="() => VerVersion(version)" Class="action-button">
+                            Ver
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">No hay versiones para mostrar</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close" Class="dialog-button">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    // MudBlazor 9 solo aplica las Options de <MudDialog> a los diálogos en línea: abierto con
+    // DialogService salía con el ancho pequeño (600 px). Se aplican al abrirse.
+    private static readonly DialogOptions Opciones = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+    [Parameter]
+    public ChecklistDto? Checklist { get; set; }
+
+    private List<ChecklistVersionDto> versiones = new();
+    private bool cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await MudDialog.SetOptionsAsync(Opciones);
+        if (Checklist == null)
+        {
+            cargando = false;
+            return;
+        }
+
+        var result = await HttpClientService.GetChecklistVersionesAsync(Checklist.IdChecklist);
+        if (result != null && result.Success && result.Data != null)
+        {
+            versiones = result.Data;
+        }
+        else
+        {
+            Snackbar.Add(result?.Message ?? "Error al cargar las versiones", Severity.Error);
+        }
+        cargando = false;
+    }
+
+    // El detalle necesita las preguntas: se pide la versión completa al API
+    private async Task VerVersion(ChecklistVersionDto version)
+    {
+        var result = await HttpClientService.GetChecklistAsync(version.IdChecklist);
+        if (result == null || !result.Success || result.Data == null)
+        {
+            Snackbar.Add(result?.Message ?? "Error al cargar el checklist", Severity.Error);
+            return;
+        }
+
+        var parameters = new DialogParameters { ["Checklist"] = result.Data };
+        await DialogService.ShowAsync<ChecklistDetailModal>("Detalle del Checklist", parameters);
+    }
+
+    private void Close()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}
+
+<style>
+.dialog-button {
+    border-radius: 12px !important;
+    min-width: 100px !important;
+    font-weight: 500 !important;
+}
+
+.dialog-button.mud-button-filled {
+    background-color: var(--primary) !important;
+    color: white !important;
+}
+
+.dialog-button.mud-button-filled:hover {
+    background-color: var(--primary-dark) !important;
+}
+
+.action-button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+.action-button:hover {
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+</style>

@@ -1,0 +1,58 @@
+﻿@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+
+<div class="firma-container d-flex flex-column align-center">
+    @* La guía («Firme aquí» y una línea) va sobre el lienzo, sin tocarlo: lo que se firma es el lienzo, no la guía. *@
+    <div class="firma-lienzo">
+        <canvas @ref="canvasRef" width="340" height="200" style="max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 12px; touch-action: none; background-color: white; box-shadow: var(--sombra-1);"></canvas>
+        <div class="firma-guia" aria-hidden="true"><span>Firme aquí</span></div>
+    </div>
+    
+    <div class="mt-4 d-flex gap-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="LimpiarFirma">
+            Limpiar
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmarFirma">
+            Usar esta firma
+        </MudButton>
+    </div>
+</div>
+
+@code {
+    private ElementReference canvasRef;
+
+    // Este es el puente de comunicación hacia el componente padre (PasoFirma)
+    [Parameter]
+    public EventCallback<string> OnFirmaConfirmada { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("FirmaCanvas.init", canvasRef);
+        }
+    }
+
+    private async Task LimpiarFirma()
+    {
+        await JSRuntime.InvokeVoidAsync("FirmaCanvas.limpiar", canvasRef);
+    }
+
+    private async Task ConfirmarFirma()
+    {
+        bool tieneTrazo = await JSRuntime.InvokeAsync<bool>("FirmaCanvas.tieneTrazo", canvasRef);
+
+        if (!tieneTrazo)
+        {
+            Snackbar.Add("Debe firmar antes de continuar. El recuadro está en blanco.", Severity.Warning);
+            return;
+        }
+
+        string firmaBase64 = await JSRuntime.InvokeAsync<string>("FirmaCanvas.obtenerBase64", canvasRef);
+
+        if (OnFirmaConfirmada.HasDelegate)
+        {
+            await OnFirmaConfirmada.InvokeAsync(firmaBase64);
+        }
+    }
+}

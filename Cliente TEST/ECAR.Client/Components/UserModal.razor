@@ -1,0 +1,294 @@
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog Options="new DialogOptions { CloseOnEscapeKey = false }" Class="form-enter form-compacto">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsEditMode ? "Editar Usuario" : "Crear Nuevo Usuario")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudTextField T="string" Label="Nombre" @bind-Value="nombre" 
+                Variant="Variant.Outlined" Required="true" RequiredError="El nombre es requerido"
+                MaxLength="200" Immediate="true" Class="mb-3" />
+
+            <MudTextField T="string" Label="Correo" @bind-Value="correo" 
+                Variant="Variant.Outlined" Required="true" RequiredError="El correo es requerido"
+                Validation="@(new Func<string, IEnumerable<string>>(ErroresCorreo))"
+                MaxLength="150" Immediate="true" Class="mb-3" />
+
+            @if (modoSgi)
+            {
+                @* Modo SgiIdentity: la contraseña es de SGI.Identity y aquí solo se registra el usuario. *@
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                    La contraseña la administra SGI.Identity. Registre el usuario de SGI.Identity: su nombre y sus
+                    roles se reemplazan en cada inicio de sesión por los que envía ese servicio.
+                </MudAlert>
+            }
+            else if (IsEditMode)
+            {
+                @* La contraseña solo se pone al crear el usuario: desde el 03/11/2026 el cambio y el
+                   restablecimiento los hace una API externa. *@
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                    La contraseña no se cambia ni se restablece en este sistema: la administra la API externa de contraseñas.
+                </MudAlert>
+            }
+            else
+            {
+                <MudTextField T="string" Label="Contraseña" @bind-Value="password" 
+                    Variant="Variant.Outlined" Required="true" RequiredError="La contraseña es requerida"
+                    Validation="@(new Func<string, IEnumerable<string>>(ErroresPassword))"
+                    HelperText="@TextoPolitica" HelperTextOnFocus="false"
+                    InputType="InputType.Password" Immediate="true" Class="mb-3" />
+            }
+
+            <MudTextField T="string" Label="@EtiquetaUsuarioRed" @bind-Value="usuarioAD"
+                Variant="Variant.Outlined" MaxLength="100" Immediate="true" Class="mb-3"
+                Required="@modoSgi" RequiredError="Indique el usuario de SGI.Identity" />
+
+            @* Al menos un rol, como exige el API: sin rol el usuario entraría y no podría usar nada. *@
+            <MudSelect T="long" Label="Roles" @bind-SelectedValues="selectedRoleIds" @bind-SelectedValues:after="() => faltaRol = false"
+                MultiSelection="true" Variant="Variant.Outlined" Class="mb-3"
+                Error="@faltaRol" ErrorText="Elija al menos un rol"
+                ToStringFunc="@(id => availableRoles?.FirstOrDefault(r => r.IdRol == id)?.Nombre ?? id.ToString())">
+                @if (availableRoles != null)
+                {
+                    @foreach (var role in availableRoles)
+                    {
+                        <MudSelectItem T="long" Value="@role.IdRol">@role.Nombre</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+
+            @if (IsEditMode)
+            {
+                <MudSwitch T="bool" Label="Activo" @bind-Value="activo" Color="Color.Primary" />
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="dialog-button cancel-btn">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button enter-guardar">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    private MudForm? form;
+    
+    [Parameter]
+    public UsuarioDto? Usuario { get; set; }
+    
+    [Parameter]
+    public List<RolDto>? AvailableRoles { get; set; }
+
+    private bool IsEditMode => Usuario != null;
+    private string nombre = string.Empty;
+    private string correo = string.Empty;
+    private string password = string.Empty;
+    private string? usuarioAD;
+    private bool activo = true;
+    private IReadOnlyCollection<long> selectedRoleIds = new HashSet<long>();
+    private bool faltaRol;
+    private List<RolDto>? availableRoles;
+
+    // Reglas de la contraseña del alta: las que publica el API (api/auth/politica); mientras no respondan,
+    // las del plan (PoliticaSeguridadDto trae los valores por defecto).
+    private PoliticaSeguridadDto politica = new();
+
+    // Modo SgiIdentity: sin contraseña y con el usuario de SGI.Identity obligatorio (como exige el API).
+    private bool modoSgi;
+
+    private string EtiquetaUsuarioRed => modoSgi ? "Usuario de SGI.Identity" : "Usuario AD";
+
+    private string TextoPolitica => politica.RequiereLetrasYNumeros
+        ? $"Mínimo {politica.LongitudMinimaPassword} caracteres, combinando letras y números"
+        : $"Mínimo {politica.LongitudMinimaPassword} caracteres";
+
+    protected override async Task OnInitializedAsync()
+    {
+        availableRoles = AvailableRoles ?? new List<RolDto>();
+
+        var respuestaPolitica = await HttpClientService.GetPoliticaSeguridadAsync();
+        if (respuestaPolitica.Success && respuestaPolitica.Data is { LongitudMinimaPassword: > 0 } datos)
+        {
+            politica = datos;
+            modoSgi = datos.ModoAutenticacion == ModosAutenticacion.SgiIdentity;
+        }
+        
+        if (IsEditMode && Usuario != null)
+        {
+            nombre = Usuario.Nombre;
+            correo = Usuario.Correo;
+            usuarioAD = Usuario.UsuarioAD;
+            activo = Usuario.Activo;
+            
+            // Cargar los roles que ya tiene el usuario
+            if (Usuario.Roles != null)
+            {
+                var roleNames = Usuario.Roles.ToList();
+                selectedRoleIds = availableRoles
+                    .Where(r => roleNames.Contains(r.Nombre))
+                    .Select(r => r.IdRol)
+                    .ToHashSet();
+            }
+        }
+    }
+
+    // Mismas reglas y mensajes que el API (EmailAddress de CreateUsuarioDto y PoliticaPasswords). Vacío no es
+    // un error de formato: de eso se encarga Required.
+    private static IEnumerable<string> ErroresCorreo(string valor)
+    {
+        if (!string.IsNullOrWhiteSpace(valor)
+            && !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(valor.Trim()))
+        {
+            yield return "Formato de correo inválido";
+        }
+    }
+
+    private IEnumerable<string> ErroresPassword(string valor)
+    {
+        if (string.IsNullOrEmpty(valor))
+        {
+            yield break;
+        }
+
+        if (valor.Length < politica.LongitudMinimaPassword)
+        {
+            yield return $"La contraseña debe tener al menos {politica.LongitudMinimaPassword} caracteres";
+        }
+
+        if (politica.RequiereLetrasYNumeros && (!valor.Any(char.IsLetter) || !valor.Any(char.IsDigit)))
+        {
+            yield return "La contraseña debe combinar letras y números";
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (form != null)
+        {
+            await form.ValidateAsync();
+        }
+
+        faltaRol = selectedRoleIds.Count == 0;
+        if ((form != null && !form.IsValid) || faltaRol)
+        {
+            return;
+        }
+
+        try
+        {
+            if (IsEditMode && Usuario != null)
+            {
+                // Fase 4 (§3.3): desactivar o reactivar desde la edición también pide motivo.
+                string? motivo = null;
+                if (activo != Usuario.Activo)
+                {
+                    motivo = await MotivoDialog.PedirAsync(DialogService, activo ? "Activar usuario" : "Desactivar usuario",
+                        $"Indique por qué va a {(activo ? "activar" : "desactivar")} a «{nombre}».",
+                        activo ? "Activar" : "Desactivar", activo ? Color.Success : Color.Error);
+                    if (motivo is null)
+                    {
+                        return;
+                    }
+                }
+
+                var updateDto = new UpdateUsuarioDto
+                {
+                    Nombre = nombre,
+                    Correo = correo,
+                    UsuarioAD = usuarioAD,
+                    Activo = activo,
+                    RoleIds = selectedRoleIds.ToList(),
+                    Motivo = motivo
+                };
+
+                var result = await HttpClientService.UpdateUsuarioAsync(Usuario.IdUsuario, updateDto);
+                
+                if (result != null && result.Success)
+                {
+                    Snackbar.Add("Usuario actualizado exitosamente", Severity.Success);
+                    MudDialog.Close(DialogResult.Ok(true));
+                }
+                else
+                {
+                    Snackbar.Add(MensajeApi.Detalle(result, "Error al actualizar usuario"), Severity.Error);
+                }
+            }
+            else
+            {
+                var createDto = new CreateUsuarioDto
+                {
+                    Nombre = nombre,
+                    Correo = correo,
+                    Password = modoSgi ? null : password,
+                    UsuarioAD = usuarioAD,
+                    RoleIds = selectedRoleIds.ToList()
+                };
+
+                var result = await HttpClientService.CreateUsuarioAsync(createDto);
+                
+                if (result != null && result.Success)
+                {
+                    Snackbar.Add("Usuario creado exitosamente", Severity.Success);
+                    MudDialog.Close(DialogResult.Ok(true));
+                }
+                else
+                {
+                    Snackbar.Add(MensajeApi.Detalle(result, "Error al crear usuario"), Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        var parameters = new DialogParameters { ["Message"] = "¿Realmente desea cancelar?" };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirmar Cancelación", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            MudDialog.Cancel();
+        }
+    }
+}
+
+<style>
+.dialog-button {
+    border-radius: 12px !important;
+    min-width: 100px !important;
+    font-weight: 500 !important;
+}
+
+.dialog-button.mud-button-filled {
+    background-color: var(--primary) !important;
+    color: white !important;
+}
+
+.dialog-button.mud-button-filled:hover {
+    background-color: var(--primary-dark) !important;
+}
+
+.cancel-btn {
+    background-color: var(--secondary) !important;
+    color: white !important;
+}
+
+.cancel-btn:hover {
+    background-color: var(--secondary-dark) !important;
+}
+
+.activo-checkbox {
+    background-color: transparent !important;
+}
+
+::deep .activo-checkbox .mud-checkbox {
+    background-color: transparent !important;
+}
+</style>

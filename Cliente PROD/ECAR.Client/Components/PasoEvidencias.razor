@@ -1,0 +1,224 @@
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@* PASO 2 — Evidencias fotográficas. Dueño: FE-2 (Santiago). *@
+
+<MudText Typo="Typo.subtitle1" Class="mb-2">Evidencias fotográficas</MudText>
+
+@if (!Inspeccion.EstaCerrada)
+{
+    <MudFileUpload T="IBrowserFile" @ref="fileUpload" Accept="image/*" capture="environment"
+        Disabled="Subiendo" FilesChanged="OnArchivoSeleccionadoAsync">
+        <CustomContent Context="fileUploadContext">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="Subiendo" Class="subir-foto"
+                StartIcon="@Icons.Material.Filled.AddAPhoto" OnClick="@fileUploadContext.OpenFilePickerAsync">
+                Agregar fotografía
+            </MudButton>
+        </CustomContent>
+        <SelectedTemplate Context="_"></SelectedTemplate>
+    </MudFileUpload>
+
+    @if (Subiendo)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-2" />
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            Subiendo @Texto.Cantidad(_subidasEnCurso, "fotografía", "fotografías")…
+        </MudText>
+    }
+}
+
+<MudText Typo="Typo.body2" Class="mud-text-secondary mt-3 mb-2">
+    @Texto.Cantidad(EvidenciasVisibles.Count, "fotografía adjunta", "fotografías adjuntas")
+</MudText>
+
+@if (EvidenciasVisibles.Any())
+{
+    <MudGrid>
+        @foreach (var evidencia in EvidenciasVisibles)
+        {
+            <MudItem xs="6" sm="4" md="3">
+                <MudCard Outlined="true">
+                    @if (miniaturas.TryGetValue(evidencia.IdEvidencia, out var src) && src != null)
+                    {
+                        <button type="button" class="miniatura-ampliable" title="Ver en grande"
+                                @onclick="@(() => VisorImagenDialog.AbrirAsync(DialogService, src, evidencia.NombreOriginal))">
+                            <MudImage Src="@src" ObjectFit="ObjectFit.Cover" Height="140" Class="mud-width-full" />
+                        </button>
+                    }
+                    else if (miniaturas.ContainsKey(evidencia.IdEvidencia))
+                    {
+                        <EvidenciaNoDisponible Alto="140px" />
+                    }
+                    else
+                    {
+                        <MudSkeleton Height="140px" />
+                    }
+                    <MudCardContent Class="pa-2">
+                        <MudText Typo="Typo.caption" Class="text-truncate d-block">@evidencia.NombreOriginal</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@FormatearTamano(evidencia.TamanoBytes)</MudText>
+                    </MudCardContent>
+                    @if (!Inspeccion.EstaCerrada)
+                    {
+                        <MudCardActions Class="pa-2 pt-0">
+                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
+                                StartIcon="@Icons.Material.Filled.RemoveCircleOutline" OnClick="() => ConfirmarRetirarAsync(evidencia)">
+                                Retirar
+                            </MudButton>
+                        </MudCardActions>
+                    }
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public InspeccionEjecucionDto Inspeccion { get; set; } = null!;
+
+    /// <summary>Avisa a la página contenedora para que refresque el resumen del paso.</summary>
+    [Parameter]
+    public EventCallback OnEvidenciasCambiadas { get; set; }
+
+    // Nº de fotografías subiéndose ahora mismo. Se usa para el indicador de progreso, nunca
+    // para descartar una subida: tirar una foto en silencio perdería evidencia de la
+    // inspección sin que el técnico se entere.
+    private int _subidasEnCurso;
+
+    /// <summary>true mientras haya alguna fotografía subiéndose. Úsalo para la barra de progreso.</summary>
+    protected bool Subiendo => _subidasEnCurso > 0;
+
+    private MudFileUpload<IBrowserFile>? fileUpload;
+
+    /// <summary>Caché de miniaturas ya descargadas, por IdEvidencia, para no repetir la llamada al API en cada render.</summary>
+    private readonly Dictionary<long, string?> miniaturas = new();
+
+    // Fase 4: una foto retirada se conserva (no se borra), pero no se muestra en la galería
+    // de la ejecución. El servidor ya las excluye de GET ejecucion; este filtro es un respaldo
+    // por si llegan en la respuesta de OnEvidenciasCambiadas antes de recargar.
+    private List<EvidenciaDto> EvidenciasVisibles => Inspeccion.Evidencias.Where(e => !e.Retirada).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await CargarMiniaturasFaltantesAsync();
+    }
+
+    /// <summary>Comprime la fotografía tomada/elegida y la sube; limpia el control para el siguiente disparo.</summary>
+    private async Task OnArchivoSeleccionadoAsync(IBrowserFile archivo)
+    {
+        if (archivo == null)
+        {
+            return;
+        }
+
+        IBrowserFile archivoComprimido;
+        try
+        {
+            // La red de planta no aguanta fotos de varios MB directo de la cámara: se reduce antes de subir.
+            archivoComprimido = await archivo.RequestImageFileAsync("image/jpeg", 1600, 1600);
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("No se pudo procesar la fotografía seleccionada", Severity.Error);
+            return;
+        }
+
+        await SubirAsync(archivoComprimido);
+        await CargarMiniaturasFaltantesAsync();
+
+        if (fileUpload != null)
+        {
+            await fileUpload.ClearAsync();
+        }
+    }
+
+    /// <summary>Sube una fotografía y la añade a la lista en memoria.</summary>
+    protected async Task SubirAsync(IBrowserFile archivo)
+    {
+        if (archivo.Size > HttpClientService.MaxEvidenciaBytes)
+        {
+            Snackbar.Add("La fotografía supera el máximo de 5 MB", Severity.Warning);
+            return;
+        }
+
+        _subidasEnCurso++;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await HttpClientService.UploadEvidenciaAsync(Inspeccion.IdInspeccion, archivo);
+
+        _subidasEnCurso--;
+        await InvokeAsync(StateHasChanged);
+
+        if (result == null || !result.Success || result.Data == null)
+        {
+            Snackbar.Add(result?.Message ?? "Error al subir la fotografía", Severity.Error);
+            return;
+        }
+
+        Inspeccion.Evidencias.Add(result.Data);
+        Snackbar.Add("Fotografía cargada", Severity.Success);
+        await OnEvidenciasCambiadas.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Fase 4: la foto no se borra, se retira con motivo (queda en la auditoría). Pide el motivo
+    /// con el mismo diálogo que usan novedades e inspecciones.
+    /// </summary>
+    private async Task ConfirmarRetirarAsync(EvidenciaDto evidencia)
+    {
+        var motivo = await MotivoDialog.PedirAsync(DialogService, "Retirar fotografía",
+            $"\"{evidencia.NombreOriginal}\" dejará de verse en esta inspección, pero el archivo se conserva.",
+            "Retirar", Color.Error);
+
+        if (motivo is not null)
+        {
+            await RetirarAsync(evidencia, motivo);
+        }
+    }
+
+    /// <summary>Retira una evidencia (solo mientras la inspección siga en curso); el archivo se conserva.</summary>
+    protected async Task RetirarAsync(EvidenciaDto evidencia, string motivo)
+    {
+        var result = await HttpClientService.RetirarEvidenciaAsync(evidencia.IdEvidencia, motivo);
+
+        if (!result.Success)
+        {
+            Snackbar.Add(result.Message, Severity.Error);
+            return;
+        }
+
+        Inspeccion.Evidencias.Remove(evidencia);
+        miniaturas.Remove(evidencia.IdEvidencia);
+        await OnEvidenciasCambiadas.InvokeAsync();
+    }
+
+    /// <summary>Imagen lista para el atributo Src de MudImage; null si no se pudo descargar.</summary>
+    protected Task<string?> CargarMiniaturaAsync(EvidenciaDto evidencia) =>
+        HttpClientService.GetEvidenciaImageDataUrlAsync(evidencia.IdEvidencia, evidencia.TipoContenido);
+
+    private async Task CargarMiniaturasFaltantesAsync()
+    {
+        var faltantes = Inspeccion.Evidencias.Where(e => !miniaturas.ContainsKey(e.IdEvidencia)).ToList();
+
+        foreach (var evidencia in faltantes)
+        {
+            miniaturas[evidencia.IdEvidencia] = await CargarMiniaturaAsync(evidencia);
+        }
+    }
+
+    private static string FormatearTamano(long bytes)
+    {
+        if (bytes >= 1024 * 1024)
+        {
+            return $"{bytes / (1024.0 * 1024.0):0.0} MB";
+        }
+
+        if (bytes >= 1024)
+        {
+            return $"{bytes / 1024.0:0} KB";
+        }
+
+        return $"{bytes} B";
+    }
+}

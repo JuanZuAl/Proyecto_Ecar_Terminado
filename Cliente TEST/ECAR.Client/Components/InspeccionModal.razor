@@ -1,0 +1,216 @@
+@* Registro manual de una inspección (solo el Administrador). Ya no edita: desde el 22/10/2026 las
+   inspecciones no tienen «Editar»; se completan y se firman en la ejecución («Continuar»). *@
+@inject HttpClientService HttpClientService
+@inject AuthorizationService AuthorizationService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog Options="Opciones" Class="form-enter">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Registrar Nueva Inspección</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudAutocomplete AdornmentAriaLabel="Mostrar opciones" T="EquipoDto" Label="Equipo" @bind-Value="equipoSeleccionado"
+                SearchFunc="BuscarEquiposAsync" ToStringFunc="@(e => e == null ? string.Empty : $"{e.CodigoInterno} - {e.NombreEquipo}")"
+                Variant="Variant.Outlined" Required="true" RequiredError="El equipo es requerido"
+                MinCharacters="0" MaxItems="@MaxResultadosBusqueda" ResetValueOnEmptyText="true"
+                Clearable="true" Class="mb-3"
+                HelperText="Escriba código, nombre, marca o serial para filtrar" />
+
+            @* El inspector es siempre quien inició sesión (regla 2 del SRS): el API toma el usuario
+               del token e ignora cualquier otro. Antes había un buscador para elegir a cualquiera,
+               y lo elegido se descartaba en silencio al guardar. *@
+            <MudTextField T="string" Label="Inspector" Value="@nombreInspector"
+                Variant="Variant.Outlined" ReadOnly="true" Class="mb-3"
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person"
+                HelperText="La inspección queda a nombre del usuario que inició sesión" />
+
+            <MudSelect T="long?" Label="Checklist" @bind-Value="checklistSeleccionado" Variant="Variant.Outlined"
+                Required="true" RequiredError="El checklist es requerido" Class="mb-3"
+                HelperText="Solo se listan los checklists activos">
+                @foreach (var checklist in checklistsActivos)
+                {
+                    <MudSelectItem T="long?" Value="@((long?)checklist.IdChecklist)">@($"{checklist.Nombre} (v{checklist.Version})")</MudSelectItem>
+                }
+            </MudSelect>
+
+            @* La fecha la registra el servidor al guardar (ALCOA+ contemporáneo): solo se muestra, como
+               texto y sin el botón del calendario (F-37). *@
+            <MudTextField T="string" Label="Fecha de inspección" Value="@FechaHoy" Variant="Variant.Outlined"
+                ReadOnly="true" HelperText="Se registra la fecha y hora del servidor al guardar" Class="mb-3"
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Event" />
+
+            @* Sin campo de Resultado: lo calcula el servidor al firmar (Satisfactorio o Pendiente). *@
+            <MudTextField T="string" Label="Observaciones" @bind-Value="observaciones"
+                Variant="Variant.Outlined" Lines="3" Immediate="true" Class="mb-3"
+                HelperText="Observaciones generales. El resultado lo calcula el sistema al firmar" />
+
+            @* Firmar y cerrar son la misma acción (POST firmar): el servidor exige las obligatorias
+               respondidas y cada novedad con observación, y después la inspección queda inmutable.
+               Por eso una inspección nueva no se puede firmar al registrarla. *@
+            <MudTextField T="string" Label="Firma digital" Value="@("Pendiente de firma")"
+                Variant="Variant.Outlined" ReadOnly="true"
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Draw"
+                HelperText="Se firma al cerrar la inspección, con el checklist ya respondido: en el paso 3 de la ejecución («Continuar» en el listado)" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="dialog-button cancel-btn">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HandleSubmit" Class="dialog-button enter-guardar">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    // MudBlazor 9 solo aplica las Options de <MudDialog> a los diálogos en línea: abierto con
+    // DialogService salía con el ancho pequeño (600 px). Se aplican al abrirse.
+    private static readonly DialogOptions Opciones = new() { CloseOnEscapeKey = false, MaxWidth = MaxWidth.Medium, FullWidth = true };
+    private MudForm? form;
+
+    // El API rechaza pageSize mayor que 100; además el desplegable solo muestra los primeros resultados.
+    private const int MaxResultadosBusqueda = 20;
+
+    private EquipoDto? equipoSeleccionado;
+    private string nombreInspector = string.Empty;
+    private List<ChecklistDto> checklistsActivos = new();
+    private long? checklistSeleccionado;
+
+    // El API ignora CreateInspeccionDto.FechaInspeccion y pone la suya; aquí solo se informa el día.
+    private static string FechaHoy => FormatoEstados.HoraColombia(DateTime.UtcNow, "dd/MM/yyyy");
+    private string? observaciones;
+
+    // Evita repetir el mismo mensaje de error en cada pulsación del buscador.
+    private bool errorEquiposAvisado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await MudDialog.SetOptionsAsync(Opciones);
+        nombreInspector = await AuthorizationService.GetUserNameAsync() ?? "Usuario de la sesión";
+        await CargarChecklistsActivosAsync();
+    }
+
+    // El API de Checklists no tiene un filtro "solo activos"; se trae una página y se filtra
+    // aquí. pageSize se deja en 100 (el máximo que aceptan los demás controladores) porque
+    // en la práctica el catálogo de checklists es chico, a diferencia de Equipos/Usuarios.
+    private async Task CargarChecklistsActivosAsync()
+    {
+        var respuesta = await HttpClientService.GetChecklistsAsync(1, 100);
+
+        if (respuesta == null || !respuesta.Success)
+        {
+            Snackbar.Add(respuesta?.Message ?? "No se pudieron cargar los checklists", Severity.Error);
+            checklistsActivos = new List<ChecklistDto>();
+            return;
+        }
+
+        checklistsActivos = (respuesta.Data?.Data ?? new List<ChecklistDto>())
+            .Where(c => c.Activo)
+            .ToList();
+    }
+
+    // El filtro se resuelve en el API para que la lista funcione con muchos registros.
+    private async Task<IEnumerable<EquipoDto>> BuscarEquiposAsync(string valor, CancellationToken token)
+    {
+        // Solo equipos activos: el API rechaza registrar una inspección sobre uno desactivado.
+        var respuesta = await HttpClientService.GetEquiposAsync(1, MaxResultadosBusqueda, valor, activo: true);
+
+        if (respuesta == null || !respuesta.Success)
+        {
+            if (!errorEquiposAvisado)
+            {
+                errorEquiposAvisado = true;
+                Snackbar.Add(respuesta?.Message ?? "No se pudieron cargar los equipos", Severity.Error);
+            }
+
+            return Array.Empty<EquipoDto>();
+        }
+
+        errorEquiposAvisado = false;
+        return respuesta.Data?.Data ?? new List<EquipoDto>();
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (form != null)
+        {
+            await form.ValidateAsync();
+            if (!form.IsValid)
+            {
+                return;
+            }
+        }
+
+        if (equipoSeleccionado == null)
+        {
+            Snackbar.Add("Debe seleccionar un equipo", Severity.Warning);
+            return;
+        }
+
+        if (checklistSeleccionado is null or <= 0)
+        {
+            Snackbar.Add("Debe seleccionar un checklist", Severity.Warning);
+            return;
+        }
+
+        var createDto = new CreateInspeccionDto
+        {
+            // IdUsuario no se envía: el API lo toma del token.
+            IdEquipo = equipoSeleccionado.IdEquipo,
+            IdChecklist = checklistSeleccionado.Value,
+            FechaInspeccion = DateTime.UtcNow,
+            Observaciones = observaciones
+        };
+
+        var result = await HttpClientService.CreateInspeccionAsync(createDto);
+
+        if (result != null && result.Success)
+        {
+            Snackbar.Add("Inspección registrada exitosamente", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            Snackbar.Add(result?.Message ?? "Error al registrar inspección", Severity.Error);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        var parameters = new DialogParameters { ["Message"] = "¿Realmente desea cancelar?" };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirmar Cancelación", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            MudDialog.Cancel();
+        }
+    }
+}
+
+<style>
+.dialog-button {
+    border-radius: 12px !important;
+    min-width: 100px !important;
+    font-weight: 500 !important;
+}
+
+.dialog-button.mud-button-filled {
+    background-color: var(--primary) !important;
+    color: white !important;
+}
+
+.dialog-button.mud-button-filled:hover {
+    background-color: var(--primary-dark) !important;
+}
+
+.cancel-btn {
+    background-color: var(--secondary) !important;
+    color: white !important;
+}
+
+.cancel-btn:hover {
+    background-color: var(--secondary-dark) !important;
+}
+</style>

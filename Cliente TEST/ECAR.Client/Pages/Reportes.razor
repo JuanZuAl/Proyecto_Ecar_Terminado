@@ -1,0 +1,708 @@
+@page "/reportes"
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+
+@* Pantalla de reportes (Fase 4, FE-2; PLAN_FASE4_TAREAS §3.9, SRS §6/§7). Un único endpoint por
+   reporte con formato=json|pdf|xlsx (endpoints 15 a 20): la vista previa pagina con json y los
+   botones PDF/Excel descargan el mismo archivo, así que nunca pueden discrepar.
+
+   Las fechas son obligatorias y el rango máximo es un año (se valida acá antes de llamar al API,
+   además de lo que valide el servidor). Solo Administrador y Supervisor, igual que el API. *@
+
+<RolRouteGuard Roles="@(new[] { RolesSistema.Administrador, RolesSistema.Supervisor })"
+               MensajeNoAutorizado="Solo administradores y supervisores pueden consultar los reportes.">
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5">Reportes</MudText>
+                <MudText Typo="Typo.body2">Historial de inspecciones y novedades (SRS §7)</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pt-3" Class="tabs-reportes">
+
+                @* ---------- Historial por Equipo ---------- *@
+                <MudTabPanel Text="Historial por Equipo">
+                    <MudGrid Class="mb-2" Spacing="2">
+                        <MudItem xs="12" sm="6" lg="4">
+                            <BuscadorMultiple TItem="EquipoDto" Label="Equipos" SearchFunc="BuscarEquiposAsync"
+                                ToStringFunc="@(e => e == null ? string.Empty : $"{e.CodigoInterno} - {e.NombreEquipo}")"
+                                Clave="@(e => e.IdEquipo)" Seleccionados="equiposSeleccionados"
+                                HelperText="Opcional: elija uno o varios; vacío, todos los equipos" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoEquipo.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoEquipo.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoEquipo.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoEquipo.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        @BotonesConsulta(() => ConsultarAsync(estadoEquipo, ReporteTipos.HistorialEquipo),
+                            f => DescargarAsync(estadoEquipo, ReporteTipos.HistorialEquipo, f), estadoEquipo)
+                    </MudGrid>
+
+                    @if (estadoEquipo.Cargando)
+                    {
+                        <MudProgressLinear Indeterminate="true" Class="my-4" />
+                    }
+                    else if (estadoEquipo.Filas.Any())
+                    {
+                        <MudTable Items="estadoEquipo.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
+                            <HeaderContent>
+                                <MudTh>Inspección</MudTh>
+                                <MudTh>Sede</MudTh>
+                                <MudTh>Equipo</MudTh>
+                                <MudTh>Código / Activo fijo</MudTh>
+                                <MudTh>Marca / Modelo</MudTh>
+                                <MudTh>Área</MudTh>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Resultado</MudTh>
+                                <MudTh>Observaciones</MudTh>
+                                <MudTh>Inspector</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Inspección">#@context.IdInspeccion</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
+                                <MudTd DataLabel="Equipo">@context.NombreEquipo</MudTd>
+                                <MudTd DataLabel="Código / Activo fijo">@context.CodigoInterno / @context.ActivoFijo</MudTd>
+                                <MudTd DataLabel="Marca / Modelo">@context.Marca @context.Modelo</MudTd>
+                                <MudTd DataLabel="Área">@(context.Area ?? "—")</MudTd>
+                                <MudTd DataLabel="Fecha">@context.FechaInspeccion.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd DataLabel="Resultado">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorResultado(context.Resultado)"
+                                        Text="@InspeccionResultados.Texto(context.Resultado)" />
+                                </MudTd>
+                                <MudTd DataLabel="Observaciones">@(context.Observaciones ?? "—")</MudTd>
+                                <MudTd DataLabel="Inspector">@context.Inspector</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                        @Paginacion(estadoEquipo, p => CambiarPaginaAsync(estadoEquipo, ReporteTipos.HistorialEquipo, p))
+                    }
+                    else if (estadoEquipo.Consultado)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="my-4">No hay inspecciones con estos filtros</MudAlert>
+                    }
+                </MudTabPanel>
+
+                @* ---------- Historial por Área ---------- *@
+                <MudTabPanel Text="Historial por Área">
+                    <MudGrid Class="mb-2" Spacing="2">
+                        <MudItem xs="12" sm="6" lg="3">
+                            <MudSelect T="string" Label="Plantas" MultiSelection="true" SelectedValues="@estadoArea.Filtro.Plantas"
+                                SelectedValuesChanged="@(v => estadoArea.Filtro.Plantas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var planta in Plantas)
+                                {
+                                    <MudSelectItem T="string" Value="@planta">@planta</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="3">
+                            <MudSelect T="string" Label="Áreas" MultiSelection="true" SelectedValues="@estadoArea.Filtro.Areas"
+                                SelectedValuesChanged="@(v => estadoArea.Filtro.Areas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var area in AreasDe(estadoArea.Filtro.Plantas))
+                                {
+                                    <MudSelectItem T="string" Value="@area">@area</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoArea.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoArea.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoArea.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoArea.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        @BotonesConsulta(() => ConsultarAsync(estadoArea, ReporteTipos.HistorialArea),
+                            f => DescargarAsync(estadoArea, ReporteTipos.HistorialArea, f), estadoArea)
+                    </MudGrid>
+
+                    @if (estadoArea.Cargando)
+                    {
+                        <MudProgressLinear Indeterminate="true" Class="my-4" />
+                    }
+                    else if (estadoArea.Filas.Any())
+                    {
+                        <MudTable Items="estadoArea.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
+                            <HeaderContent>
+                                <MudTh>Inspección</MudTh>
+                                <MudTh>Sede</MudTh>
+                                <MudTh>Planta</MudTh>
+                                <MudTh>Área</MudTh>
+                                <MudTh>Equipo</MudTh>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Resultado</MudTh>
+                                <MudTh>Responsable</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Inspección">#@context.IdInspeccion</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
+                                <MudTd DataLabel="Planta">@context.Planta</MudTd>
+                                <MudTd DataLabel="Área">@context.Area</MudTd>
+                                <MudTd DataLabel="Equipo">@context.Equipo</MudTd>
+                                <MudTd DataLabel="Fecha">@context.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd DataLabel="Resultado">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorResultado(context.Resultado)"
+                                        Text="@InspeccionResultados.Texto(context.Resultado)" />
+                                </MudTd>
+                                <MudTd DataLabel="Responsable">@context.Responsable</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                        @Paginacion(estadoArea, p => CambiarPaginaAsync(estadoArea, ReporteTipos.HistorialArea, p))
+                    }
+                    else if (estadoArea.Consultado)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="my-4">No hay inspecciones con estos filtros</MudAlert>
+                    }
+                </MudTabPanel>
+
+                @* ---------- Historial por Usuario ---------- *@
+                <MudTabPanel Text="Historial por Usuario">
+                    <MudGrid Class="mb-2" Spacing="2">
+                        <MudItem xs="12" sm="6" lg="4">
+                            <BuscadorMultiple TItem="UsuarioBusquedaDto" Label="Usuarios" SearchFunc="BuscarUsuariosAsync"
+                                ToStringFunc="@(u => u == null ? string.Empty : DescripcionUsuario.Texto(u.Nombre, u.Usuario, u.Correo))"
+                                Clave="@(u => u.IdUsuario)" Seleccionados="usuariosSeleccionados"
+                                HelperText="Opcional: elija uno o varios; vacío, todos los usuarios" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoUsuario.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoUsuario.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoUsuario.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoUsuario.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        @BotonesConsulta(() => ConsultarAsync(estadoUsuario, ReporteTipos.HistorialUsuario),
+                            f => DescargarAsync(estadoUsuario, ReporteTipos.HistorialUsuario, f), estadoUsuario)
+                    </MudGrid>
+
+                    @if (estadoUsuario.Cargando)
+                    {
+                        <MudProgressLinear Indeterminate="true" Class="my-4" />
+                    }
+                    else if (estadoUsuario.Filas.Any())
+                    {
+                        <MudTable Items="estadoUsuario.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
+                            <HeaderContent>
+                                <MudTh>Inspección</MudTh>
+                                <MudTh>Sede</MudTh>
+                                <MudTh>Usuario</MudTh>
+                                <MudTh>Equipo</MudTh>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Resultado</MudTh>
+                                <MudTh>Observaciones</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Inspección">#@context.IdInspeccion</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
+                                <MudTd DataLabel="Usuario">@context.Usuario</MudTd>
+                                <MudTd DataLabel="Equipo">@context.Equipo</MudTd>
+                                <MudTd DataLabel="Fecha">@context.FechaInspeccion.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd DataLabel="Resultado">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorResultado(context.Resultado)"
+                                        Text="@InspeccionResultados.Texto(context.Resultado)" />
+                                </MudTd>
+                                <MudTd DataLabel="Observaciones">@(context.Observaciones ?? "—")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                        @Paginacion(estadoUsuario, p => CambiarPaginaAsync(estadoUsuario, ReporteTipos.HistorialUsuario, p))
+                    }
+                    else if (estadoUsuario.Consultado)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="my-4">No hay inspecciones con estos filtros</MudAlert>
+                    }
+                </MudTabPanel>
+
+                @* ---------- Equipos con Novedades ---------- *@
+                <MudTabPanel Text="Equipos con Novedades">
+                    <MudGrid Class="mb-2" Spacing="2">
+                        <MudItem xs="12" sm="6" lg="3">
+                            <MudSelect T="string" Label="Estados" MultiSelection="true" SelectedValues="@estadoNovedades.Filtro.Estados"
+                                SelectedValuesChanged="@(v => estadoNovedades.Filtro.Estados = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Uno o varios; vacío, todos">
+                                @foreach (var estadoNovedad in NovedadEstados.Todos)
+                                {
+                                    <MudSelectItem T="string" Value="@estadoNovedad">@estadoNovedad</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="3">
+                            <MudSelect T="string" Label="Criticidades" MultiSelection="true" SelectedValues="@estadoNovedades.Filtro.Criticidades"
+                                SelectedValuesChanged="@(v => estadoNovedades.Filtro.Criticidades = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var criticidad in Criticidades.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@criticidad">@criticidad</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@estadoNovedades.Filtro.Sedes"
+                                SelectedValuesChanged="@(v => estadoNovedades.Filtro.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="estadoNovedades.Filtro.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="estadoNovedades.Filtro.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        @BotonesConsulta(() => ConsultarAsync(estadoNovedades, ReporteTipos.EquiposNovedades),
+                            f => DescargarAsync(estadoNovedades, ReporteTipos.EquiposNovedades, f), estadoNovedades)
+                    </MudGrid>
+
+                    @if (estadoNovedades.Cargando)
+                    {
+                        <MudProgressLinear Indeterminate="true" Class="my-4" />
+                    }
+                    else if (estadoNovedades.Filas.Any())
+                    {
+                        <MudTable Items="estadoNovedades.Filas" Hover="true" Striped="true" Elevation="0" Dense="true" Class="tabla-compacta">
+                            <HeaderContent>
+                                <MudTh>Novedad</MudTh>
+                                <MudTh>Sede</MudTh>
+                                <MudTh>Equipo</MudTh>
+                                <MudTh>Área</MudTh>
+                                <MudTh>Descripción</MudTh>
+                                <MudTh>Criticidad</MudTh>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Responsable</MudTh>
+                                <MudTh>Estado</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Novedad">#@context.IdNovedad</MudTd>
+                                <MudTd DataLabel="Sede">@(context.Sede ?? "—")</MudTd>
+                                <MudTd DataLabel="Equipo">@context.Equipo</MudTd>
+                                <MudTd DataLabel="Área">@(context.Area ?? "—")</MudTd>
+                                <MudTd DataLabel="Descripción">@context.Novedad</MudTd>
+                                <MudTd DataLabel="Criticidad">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@CriticidadColor(context.Criticidad)"
+                                        Text="@(context.Criticidad ?? "—")" />
+                                </MudTd>
+                                <MudTd DataLabel="Fecha">@context.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd DataLabel="Responsable">@(context.Responsable ?? "Sin resolver")</MudTd>
+                                <MudTd DataLabel="Estado">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@FormatoEstados.ColorNovedad(context.Estado)" Text="@context.Estado" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                        @Paginacion(estadoNovedades, p => CambiarPaginaAsync(estadoNovedades, ReporteTipos.EquiposNovedades, p))
+                    }
+                    else if (estadoNovedades.Consultado)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="my-4">No hay novedades con estos filtros</MudAlert>
+                    }
+                </MudTabPanel>
+
+                @* ---------- Inspecciones por Fechas ---------- *@
+                <MudTabPanel Text="Inspecciones por Fechas">
+                    <MudGrid Class="mb-2" Spacing="2">
+                        <MudItem xs="12" sm="6" lg="3">
+                            <MudSelect T="string" Label="Plantas" MultiSelection="true" SelectedValues="@filtroFechas.Plantas"
+                                SelectedValuesChanged="@(v => filtroFechas.Plantas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var planta in Plantas)
+                                {
+                                    <MudSelectItem T="string" Value="@planta">@planta</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="3">
+                            <MudSelect T="string" Label="Áreas" MultiSelection="true" SelectedValues="@filtroFechas.Areas"
+                                SelectedValuesChanged="@(v => filtroFechas.Areas = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Una o varias; vacío, todas">
+                                @foreach (var area in AreasDe(filtroFechas.Plantas))
+                                {
+                                    <MudSelectItem T="string" Value="@area">@area</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="2">
+                            <MudSelect T="string" Label="Sedes" MultiSelection="true" SelectedValues="@filtroFechas.Sedes"
+                                SelectedValuesChanged="@(v => filtroFechas.Sedes = Lista(v))" Variant="Variant.Outlined" Clearable="true"
+                                HelperText="Rionegro, Medellín o las dos">
+                                @foreach (var sede in Sedes.Todas)
+                                {
+                                    <MudSelectItem T="string" Value="@sede">@sede</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Desde" @bind-Date="filtroFechas.Desde" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" lg="2">
+                            <MudDatePicker DateFormat="dd/MM/yyyy" Label="Hasta" @bind-Date="filtroFechas.Hasta" Variant="Variant.Outlined" Editable="true" />
+                        </MudItem>
+                        <MudItem xs="12" Class="d-flex flex-wrap gap-2 justify-end">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                                Disabled="cargandoFechas" OnClick="ConsultarFechasAsync">Consultar</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                                Disabled="descargandoFechas" OnClick="@(() => DescargarFechasAsync(ReporteFormatos.Pdf))">
+                                @(descargandoFechas ? "Generando…" : "PDF")
+                            </MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.GridOn"
+                                Disabled="descargandoFechas" OnClick="@(() => DescargarFechasAsync(ReporteFormatos.Excel))">
+                                @(descargandoFechas ? "Generando…" : "Excel")
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (cargandoFechas)
+                    {
+                        <MudProgressLinear Indeterminate="true" Class="my-4" />
+                    }
+                    else if (resultadoFechas != null)
+                    {
+                        <MudGrid Class="mb-3">
+                            <MudItem xs="4">
+                                <MudPaper Class="pa-3 text-center" Outlined="true">
+                                    <MudText Typo="Typo.h5">@resultadoFechas.TotalInspecciones</MudText>
+                                    <MudText Typo="Typo.caption">Inspecciones</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="4">
+                                <MudPaper Class="pa-3 text-center" Outlined="true">
+                                    <MudText Typo="Typo.h5" Color="Color.Success">@resultadoFechas.Satisfactorias</MudText>
+                                    <MudText Typo="Typo.caption">Satisfactorias</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="4">
+                                <MudPaper Class="pa-3 text-center" Outlined="true">
+                                    <MudText Typo="Typo.h5" Color="Color.Warning">@resultadoFechas.ConNovedad</MudText>
+                                    <MudText Typo="Typo.caption">Con novedad</MudText>
+                                </MudPaper>
+                            </MudItem>
+                        </MudGrid>
+
+                        @if (resultadoFechas.PorArea.Any())
+                        {
+                            <MudTable Items="resultadoFechas.PorArea" Hover="true" Striped="true" Elevation="0" Dense="true">
+                                <HeaderContent>
+                                    <MudTh>Planta</MudTh>
+                                    <MudTh>Área</MudTh>
+                                    <MudTh>Inspecciones</MudTh>
+                                    <MudTh>Satisfactorias</MudTh>
+                                    <MudTh>Con novedad</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="Planta">@context.Planta</MudTd>
+                                    <MudTd DataLabel="Área">@context.Area</MudTd>
+                                    <MudTd DataLabel="Inspecciones">@context.TotalInspecciones</MudTd>
+                                    <MudTd DataLabel="Satisfactorias">@context.Satisfactorias</MudTd>
+                                    <MudTd DataLabel="Con novedad">@context.ConNovedad</MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info">No hay inspecciones con estos filtros</MudAlert>
+                        }
+                    }
+                </MudTabPanel>
+            </MudTabs>
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+</RolRouteGuard>
+
+<style>
+    /* Cinco pestañas largas: con el relleno por defecto casi llenan el ancho y, al aparecer la barra de
+       desplazamiento vertical (con los resultados), salen las flechas de desplazamiento de la barra (M-03). */
+    .mud-tabs.tabs-reportes .mud-tab {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+</style>
+
+@code {
+    private const int TamanoPagina = 10;
+    private const int MaxResultadosBusqueda = 20;
+
+    /// <summary>Estado de un reporte paginado: filtros, página actual y lo que trajo el servidor.</summary>
+    private class EstadoReporte<T>
+    {
+        public ReporteFiltroDto Filtro { get; } = new()
+        {
+            Desde = DateTime.Today.AddMonths(-1),
+            Hasta = DateTime.Today
+        };
+
+        public List<T> Filas { get; set; } = new();
+        public int Pagina { get; set; } = 1;
+        public int TotalPaginas { get; set; } = 1;
+        public int TotalRegistros { get; set; }
+        public bool Cargando { get; set; }
+        public bool Descargando { get; set; }
+
+        /// <summary>true desde el primer "Consultar": distingue "sin filtrar todavía" de "0 resultados".</summary>
+        public bool Consultado { get; set; }
+    }
+
+    private readonly EstadoReporte<HistorialEquipoFilaDto> estadoEquipo = new();
+    private readonly EstadoReporte<HistorialAreaFilaDto> estadoArea = new();
+    private readonly EstadoReporte<HistorialUsuarioFilaDto> estadoUsuario = new();
+    private readonly EstadoReporte<EquipoNovedadFilaDto> estadoNovedades = new();
+
+    // Inspecciones por Fechas no pagina: el servidor devuelve un único objeto con los totales
+    // y el desglose por área completo.
+    private readonly ReporteFiltroDto filtroFechas = new() { Desde = DateTime.Today.AddMonths(-1), Hasta = DateTime.Today };
+    private InspeccionesPorFechasDto? resultadoFechas;
+    private bool cargandoFechas;
+    private bool descargandoFechas;
+
+    // Varios a la vez (29/10/2026); vacíos, no filtran.
+    private readonly List<EquipoDto> equiposSeleccionados = new();
+    private readonly List<UsuarioBusquedaDto> usuariosSeleccionados = new();
+    private bool errorEquiposAvisado;
+    private bool errorUsuariosAvisado;
+
+    private List<UbicacionDto> ubicacionesFiltro = new();
+    private IEnumerable<string> Plantas => ubicacionesFiltro.Select(u => u.Planta).Distinct().OrderBy(p => p);
+
+    /// <summary>Las áreas de las plantas elegidas; sin plantas elegidas, todas.</summary>
+    private IEnumerable<string> AreasDe(IReadOnlyCollection<string> plantas) => ubicacionesFiltro
+        .Where(u => plantas.Count == 0 || plantas.Contains(u.Planta))
+        .Select(u => u.Area).Distinct().OrderBy(a => a);
+
+    private static List<string> Lista(IEnumerable<string?>? valores) =>
+        (valores ?? []).Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var respuesta = await HttpClientService.GetUbicacionesAsync(1, 100);
+        ubicacionesFiltro = respuesta?.Success == true ? respuesta.Data?.Data ?? new() : new();
+    }
+
+    // Los equipos y usuarios elegidos pasan al filtro justo antes de cada consulta o descarga. Antes se
+    // copiaban en OnParametersSet, que no corre al elegir en el buscador: el filtro salía sin ellos.
+    private void AplicarSelecciones()
+    {
+        estadoEquipo.Filtro.IdEquipos = equiposSeleccionados.Select(e => e.IdEquipo).ToList();
+        estadoUsuario.Filtro.IdUsuarios = usuariosSeleccionados.Select(u => u.IdUsuario).ToList();
+    }
+
+    private async Task<IEnumerable<EquipoDto>> BuscarEquiposAsync(string valor, CancellationToken token)
+    {
+        var respuesta = await HttpClientService.GetEquiposAsync(1, MaxResultadosBusqueda, valor);
+        if (respuesta == null || !respuesta.Success)
+        {
+            if (!errorEquiposAvisado)
+            {
+                errorEquiposAvisado = true;
+                Snackbar.Add(respuesta?.Message ?? "No se pudieron cargar los equipos", Severity.Error);
+            }
+            return Array.Empty<EquipoDto>();
+        }
+
+        errorEquiposAvisado = false;
+        return respuesta.Data?.Data ?? new List<EquipoDto>();
+    }
+
+    // F-24: GET api/reportes/usuarios (B-04) es de Administrador y Supervisor; api/usuarios era solo
+    // del Administrador y al Supervisor le fallaba. Devuelve hasta 20, con id, nombre y correo.
+    private async Task<IEnumerable<UsuarioBusquedaDto>> BuscarUsuariosAsync(string valor, CancellationToken token)
+    {
+        var respuesta = await HttpClientService.BuscarUsuariosReportesAsync(valor);
+        if (!respuesta.Success)
+        {
+            if (!errorUsuariosAvisado)
+            {
+                errorUsuariosAvisado = true;
+                Snackbar.Add(respuesta.Message, Severity.Error);
+            }
+            return Array.Empty<UsuarioBusquedaDto>();
+        }
+
+        errorUsuariosAvisado = false;
+        return respuesta.Data ?? new List<UsuarioBusquedaDto>();
+    }
+
+    /// <summary>Fechas obligatorias, rango correcto y máximo un año (SRS §7 / PLAN_FASE4_TAREAS §6 FE-2).</summary>
+    private bool FechasValidas(ReporteFiltroDto filtro)
+    {
+        if (filtro.Desde is null || filtro.Hasta is null)
+        {
+            Snackbar.Add("Las fechas \"Desde\" y \"Hasta\" son obligatorias", Severity.Warning);
+            return false;
+        }
+
+        if (filtro.Desde > filtro.Hasta)
+        {
+            Snackbar.Add("La fecha \"Desde\" no puede ser posterior a \"Hasta\"", Severity.Warning);
+            return false;
+        }
+
+        if (filtro.Hasta.Value - filtro.Desde.Value > TimeSpan.FromDays(366))
+        {
+            Snackbar.Add("El rango entre \"Desde\" y \"Hasta\" no puede superar un año", Severity.Warning);
+            return false;
+        }
+
+        return true;
+    }
+
+    private async Task ConsultarAsync<T>(EstadoReporte<T> estado, string tipo)
+    {
+        if (!FechasValidas(estado.Filtro))
+        {
+            return;
+        }
+
+        estado.Pagina = 1;
+        await CargarPaginaAsync(estado, tipo);
+    }
+
+    private async Task CargarPaginaAsync<T>(EstadoReporte<T> estado, string tipo)
+    {
+        AplicarSelecciones();
+        estado.Cargando = true;
+
+        var respuesta = await HttpClientService.GetReporteAsync<PagedResultDto<T>>(tipo, estado.Filtro, estado.Pagina, TamanoPagina);
+        if (respuesta.Success && respuesta.Data != null)
+        {
+            estado.Filas = respuesta.Data.Data ?? new List<T>();
+            estado.TotalPaginas = Math.Max(respuesta.Data.TotalPages, 1);
+            estado.TotalRegistros = respuesta.Data.TotalCount;
+        }
+        else
+        {
+            Snackbar.Add(respuesta.Message, Severity.Error);
+            estado.Filas = new List<T>();
+            estado.TotalPaginas = 1;
+            estado.TotalRegistros = 0;
+        }
+
+        estado.Consultado = true;
+        estado.Cargando = false;
+    }
+
+    private async Task CambiarPaginaAsync<T>(EstadoReporte<T> estado, string tipo, int pagina)
+    {
+        estado.Pagina = pagina;
+        await CargarPaginaAsync(estado, tipo);
+    }
+
+    private async Task DescargarAsync<T>(EstadoReporte<T> estado, string tipo, string formato)
+    {
+        if (!FechasValidas(estado.Filtro))
+        {
+            return;
+        }
+
+        AplicarSelecciones();
+        estado.Descargando = true;
+        Snackbar.Add("Generando el archivo…", Severity.Info);
+
+        var respuesta = await HttpClientService.DescargarReporteAsync(tipo, estado.Filtro, formato);
+        if (!respuesta.Success)
+        {
+            Snackbar.Add(respuesta.Message, Severity.Warning);
+        }
+
+        estado.Descargando = false;
+    }
+
+    private async Task ConsultarFechasAsync()
+    {
+        if (!FechasValidas(filtroFechas))
+        {
+            return;
+        }
+
+        cargandoFechas = true;
+
+        var respuesta = await HttpClientService.GetReporteAsync<InspeccionesPorFechasDto>(ReporteTipos.InspeccionesFechas, filtroFechas);
+        if (respuesta.Success && respuesta.Data != null)
+        {
+            resultadoFechas = respuesta.Data;
+        }
+        else
+        {
+            Snackbar.Add(respuesta.Message, Severity.Error);
+            resultadoFechas = null;
+        }
+
+        cargandoFechas = false;
+    }
+
+    private async Task DescargarFechasAsync(string formato)
+    {
+        if (!FechasValidas(filtroFechas))
+        {
+            return;
+        }
+
+        descargandoFechas = true;
+        Snackbar.Add("Generando el archivo…", Severity.Info);
+
+        var respuesta = await HttpClientService.DescargarReporteAsync(ReporteTipos.InspeccionesFechas, filtroFechas, formato);
+        if (!respuesta.Success)
+        {
+            Snackbar.Add(respuesta.Message, Severity.Warning);
+        }
+
+        descargandoFechas = false;
+    }
+
+    /// <summary>Botones "Consultar" / "PDF" / "Excel" comunes a los reportes paginados.</summary>
+    private RenderFragment BotonesConsulta<T>(Func<Task> consultar, Func<string, Task> descargar, EstadoReporte<T> estado) => @<MudItem xs="12" Class="d-flex flex-wrap gap-2 justify-end">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+            Disabled="estado.Cargando" OnClick="consultar">Consultar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+            Disabled="estado.Descargando" OnClick="@(() => descargar(ReporteFormatos.Pdf))">
+            @(estado.Descargando ? "Generando…" : "PDF")
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.GridOn"
+            Disabled="estado.Descargando" OnClick="@(() => descargar(ReporteFormatos.Excel))">
+            @(estado.Descargando ? "Generando…" : "Excel")
+        </MudButton>
+    </MudItem>;
+
+    private RenderFragment Paginacion<T>(EstadoReporte<T> estado, Func<int, Task> cambiarPagina) => @<div class="d-flex flex-wrap align-center justify-space-between mt-4 gap-2">
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@Texto.Cantidad(estado.TotalRegistros, "registro", "registros")</MudText>
+        <MudPagination Count="@estado.TotalPaginas" Selected="@estado.Pagina" SelectedChanged="cambiarPagina" />
+    </div>;
+
+    private static Color CriticidadColor(string? criticidad) => (criticidad ?? string.Empty).ToLowerInvariant() switch
+    {
+        "alta" => Color.Error,
+        "media" => Color.Warning,
+        "baja" => Color.Info,
+        _ => Color.Default
+    };
+}

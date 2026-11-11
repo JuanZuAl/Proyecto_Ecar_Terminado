@@ -1,0 +1,394 @@
+﻿@page "/inspecciones/{IdInspeccion:long}/resultado"
+@inject HttpClientService Http
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject AuthorizationService AuthorizationService
+@inject IDialogService DialogService
+
+<RolRouteGuard Roles="@(new[] { RolesSistema.Administrador, RolesSistema.Operador, RolesSistema.Estandar, RolesSistema.Supervisor })"
+                MensajeNoAutorizado="Necesita un rol del sistema para ver el resultado de una inspección.">
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4 mb-4">
+    @if (_cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Class="my-4" />
+    }
+    else if (_error != null || resultado == null)
+    {
+        <MudAlert Severity="Severity.Error" Class="my-4">
+            @(_error ?? "No se pudo cargar el resultado de la inspección.")
+            <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="VolverListado" Class="ml-2">
+                Volver al listado
+            </MudButton>
+        </MudAlert>
+    }
+    else
+    {
+        <MudPaper Elevation="0" Class="pa-6 resultado-print-area">
+
+            <!-- Encabezado del Resultado -->
+            <div class="d-flex justify-space-between align-center mb-4">
+                <div>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">Resultado de Inspección</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Estado: @InspeccionEstados.Texto(resultado.Estado) · firmada e inmutable
+                    </MudText>
+                </div>
+                <MudChip T="string" Color="@FormatoEstados.ColorResultado(resultado.Resultado)">
+                    @InspeccionResultados.Texto(resultado.Resultado)
+                </MudChip>
+            </div>
+
+            @if (resultado.Estado == InspeccionEstados.NovedadesPendientes)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+                    La inspección está firmada, pero tiene @Texto.Cantidad(resultado.NovedadesPendientes, "novedad", "novedades") sin resolver. El resultado
+                    queda «Pendiente» y pasa a «Conforme», con la inspección cerrada, cuando se resuelvan todas.
+                </MudAlert>
+            }
+
+            <MudDivider Class="mb-4" />
+
+            <!-- Resumen de Datos -->
+            <div class="ficha-datos">
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><b>Equipo:</b> @resultado.NombreEquipo (@resultado.CodigoInterno)</MudText>
+                    <MudText Typo="Typo.body2"><b>Ubicación:</b> @(string.IsNullOrWhiteSpace(resultado.UbicacionNombre) ? "Sin ubicación" : resultado.UbicacionNombre)</MudText>
+                    @* La sede se registra desde el 29/10/2026: las anteriores no la tienen. *@
+                    <MudText Typo="Typo.body2"><b>Sede:</b> @(resultado.Sede ?? "Sin registrar")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><b>Fecha de firma:</b> @(resultado.FechaCierre is { } fechaCierre ? FormatoEstados.HoraColombia(fechaCierre) : "—")</MudText>
+                    <MudText Typo="Typo.body2"><b>Inspector responsable:</b> @resultado.NombreUsuario</MudText>
+                </MudItem>
+            </MudGrid>
+            </div>
+
+            <!-- Bloque de Auditoría y Hash (SHA-256) - Visible solo para Supervisor/Administrador -->
+            @if (_puedeVerHash)
+            {
+                <MudPaper Elevation="2" Class="pa-4 mb-4">
+                    <MudText Typo="Typo.subtitle2" Class="mb-1 text-primary"><b>Auditoría Criptográfica</b></MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-2">
+                        Esta huella garantiza la inmutabilidad de la inspección: desde la Fase 4 es un
+                        HMAC-SHA256 con una clave que solo tiene el servidor (Parte 11 §11.70).
+                    </MudText>
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-2">
+                        <code style="word-break: break-all;">@resultado.FirmaHash</code>
+                    </MudPaper>
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.VerifiedUser" Class="mt-3 print-hidden"
+                               Disabled="@_verificando" OnClick="VerificarIntegridadAsync">
+                        @(_verificando ? "Verificando…" : "Verificar integridad")
+                    </MudButton>
+
+                    @if (_integridad != null)
+                    {
+                        <MudAlert Severity="@(_integridad.Integra ? Severity.Success : Severity.Error)" Dense="true" Class="mt-3">
+                            @(_integridad.Integra
+                                ? "Integridad verificada: la inspección no ha cambiado desde que se firmó."
+                                : "Integridad alterada: el contenido no coincide con la huella registrada al firmar.")
+                            <MudText Typo="Typo.caption" Class="d-block">
+                                Algoritmo: @_integridad.Algoritmo · Verificado el @_integridad.VerificadoEn.AddHours(-5).ToString("dd/MM/yyyy HH:mm") (hora de Colombia, UTC−5)
+                            </MudText>
+                        </MudAlert>
+                    }
+                </MudPaper>
+            }
+
+            <!-- Tabla de Respuestas de la Checklist -->
+            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2"><b>Respuestas de la Checklist</b></MudText>
+            <MudSimpleTable Dense="true" Striped="true" Elevation="0" Class="mb-4 tabla-respuestas">
+                <tbody>
+                    @foreach (var pregunta in resultado.Preguntas.OrderBy(p => p.Orden))
+                    {
+                        <tr>
+                            <td style="width: 40px">@pregunta.Orden</td>
+                            <td>
+                                @pregunta.Pregunta
+                                @if (!string.IsNullOrWhiteSpace(pregunta.Observacion))
+                                {
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">
+                                        Obs: @pregunta.Observacion
+                                    </MudText>
+                                }
+                            </td>
+                            @* «¿Presenta novedad?» (29/10/2026, es lo que crea la novedad). La respuesta solo sale si la
+                               hay: desde el 04/11/2026 una pregunta Sí/No se responde solo con «¿Presenta novedad?». *@
+                            <td style="width: 1%">
+                                <div class="d-flex flex-wrap justify-end gap-1">
+                                    @if (!string.IsNullOrWhiteSpace(pregunta.Respuesta))
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ma-0"
+                                                 Text="@FormatoRespuesta.Mostrar(pregunta.Respuesta)" />
+                                    }
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ma-0"
+                                             Color="@(pregunta.EsNovedad ? Color.Warning : Color.Default)" title="¿Presenta novedad?"
+                                             Text="@(pregunta.EsNovedad ? "Con novedad" : "Sin novedad")" />
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            <!-- Galería de Evidencias Fotográficas -->
+            <div class="mb-4">
+                <MudText Typo="Typo.subtitle2" Class="mb-2"><b>Evidencias Fotográficas</b></MudText>
+                @if (resultado.Evidencias.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        Esta inspección no tiene evidencias adjuntas.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudGrid Spacing="2" Class="evidencias-resultado">
+                        @foreach (var evidencia in resultado.Evidencias)
+                        {
+                            <MudItem xs="6" sm="4" md="3">
+                                <MudPaper Class="pa-2" Outlined="true">
+                                    @if (_miniaturas.TryGetValue(evidencia.IdEvidencia, out var dataUrl) && dataUrl != null)
+                                    {
+                                        <button type="button" class="miniatura-ampliable" title="Ver en grande"
+                                                @onclick="@(() => VisorImagenDialog.AbrirAsync(DialogService, dataUrl, evidencia.NombreOriginal))">
+                                            <MudImage Src="@dataUrl" Alt="Evidencia" ObjectFit="ObjectFit.Cover"
+                                                Width="150" Height="150" Class="rounded" />
+                                        </button>
+                                    }
+                                    else if (_miniaturas.ContainsKey(evidencia.IdEvidencia))
+                                    {
+                                        <EvidenciaNoDisponible Alto="150px" />
+                                    }
+                                    else
+                                    {
+                                        <MudSkeleton Width="150px" Height="150px" />
+                                    }
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            </div>
+
+            <!-- Novedades: las crea el servidor al firmar, una por cada "No", y se resuelven con firma -->
+            <NovedadesDeInspeccion IdInspeccion="@resultado.IdInspeccion" OnCambio="RecargarEstadoAsync" />
+
+            <!-- Visualización de la Firma Capturada -->
+            <div class="mb-4 text-center">
+                <MudText Typo="Typo.subtitle2" Class="mb-2"><b>Firma del inspector</b></MudText>
+                @if (!string.IsNullOrEmpty(resultado.FirmaPngBase64))
+                {
+                    <img src="data:image/png;base64,@resultado.FirmaPngBase64" alt="Firma de la inspección" style="border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; max-width: 300px; background: white;" />
+                }
+
+                @* Manifestación de la firma (Fase 4, Parte 11 §11.50). Queda dentro del área de
+                   impresión. *@
+                @if (ManifestacionFirma(resultado) is { } manifestacion)
+                {
+                    <MudText Typo="Typo.body2" Class="d-block mt-2">@manifestacion</MudText>
+                }
+            </div>
+
+            <!-- Botones de Acción (Ocultos al imprimir) -->
+            <div class="d-flex justify-end gap-3 mt-6 print-hidden">
+                <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="VolverListado">
+                    Volver al Listado
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@_descargando"
+                           StartIcon="@Icons.Material.Filled.Download" OnClick="DescargarRegistroAsync">
+                    @(_descargando ? "Generando…" : "Descargar registro PDF")
+                </MudButton>
+            </div>
+
+        </MudPaper>
+    }
+</MudContainer>
+</RolRouteGuard>
+
+<style>
+    /* Teléfono: la pregunta usa el ancho de la fila y la respuesta y la novedad bajan debajo, alineadas con
+       ella; antes la respuesta se quedaba con la mitad del ancho y la pregunta con 90 px (M-07). */
+    @@media (max-width: 599.98px) {
+        .tabla-respuestas tbody tr {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .tabla-respuestas tbody td {
+            border-bottom: none !important;
+        }
+
+        .tabla-respuestas tbody td:nth-child(1) {
+            flex: 0 0 40px;
+        }
+
+        .tabla-respuestas tbody td:nth-child(2) {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .tabla-respuestas tbody td:nth-child(3) {
+            flex: 0 0 100%;
+            width: auto !important;
+            padding-top: 0;
+            padding-left: 40px;
+        }
+
+        .tabla-respuestas tbody td:nth-child(3) > div {
+            justify-content: flex-start !important;
+        }
+    }
+
+    /* La miniatura (y su marcador gris) se adapta al ancho de su tarjeta, hasta 150 px: con 150 px fijos se
+       salía del recuadro en la rejilla de dos columnas del teléfono y parecía tener un marco doble (M-07). */
+    .evidencias-resultado .mud-skeleton {
+        display: block;
+        width: 100% !important;
+        max-width: 150px;
+        height: auto !important;
+        aspect-ratio: 1 / 1;
+    }
+
+    .evidencias-resultado .mud-image {
+        width: 100%;
+        max-width: 150px;
+        height: auto;
+        aspect-ratio: 1 / 1;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public long IdInspeccion { get; set; }
+
+    private InspeccionResultadoDto? resultado;
+    private bool _cargando = true;
+    private string? _error;
+    private bool _puedeVerHash;
+    private Dictionary<long, string?> _miniaturas = new();
+    private IntegridadInspeccionDto? _integridad;
+    private bool _verificando;
+    private bool _descargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarResultadoInspeccion();
+    }
+
+    private async Task CargarResultadoInspeccion()
+    {
+        _cargando = true;
+        _error = null;
+        try
+        {
+            var response = await Http.GetInspeccionResultadoAsync(IdInspeccion);
+
+            if (response != null && response.Success && response.Data != null)
+            {
+                resultado = response.Data;
+
+                var roles = await AuthorizationService.GetUserRolesAsync();
+                _puedeVerHash = roles.Contains(RolesSistema.Supervisor) || roles.Contains(RolesSistema.Administrador);
+
+                await CargarMiniaturasAsync();
+            }
+            else
+            {
+                _error = response?.Message ?? "No se pudo cargar el resultado de la inspección.";
+            }
+        }
+        catch (Exception)
+        {
+            _error = "Error de conexión al cargar el resultado de la inspección.";
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CargarMiniaturasAsync()
+    {
+        if (resultado?.Evidencias == null) return;
+
+        foreach (var evidencia in resultado.Evidencias)
+        {
+            var dataUrl = await Http.GetEvidenciaImageDataUrlAsync(
+                evidencia.IdEvidencia, evidencia.TipoContenido);
+            _miniaturas[evidencia.IdEvidencia] = dataUrl;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // Al resolverse una novedad cambian el estado y el resultado; las miniaturas siguen siendo las mismas.
+    private async Task RecargarEstadoAsync()
+    {
+        var response = await Http.GetInspeccionResultadoAsync(IdInspeccion);
+        if (response is { Success: true, Data: not null })
+        {
+            resultado = response.Data;
+        }
+    }
+
+    private void VolverListado()
+    {
+        Navigation.NavigateTo("/inspecciones");
+    }
+    
+
+
+    private async Task VerificarIntegridadAsync()
+    {
+        if (_verificando) return;
+
+        _verificando = true;
+        _integridad = null;
+        var respuesta = await Http.VerificarIntegridadInspeccionAsync(IdInspeccion);
+        _verificando = false;
+
+        if (respuesta.Success && respuesta.Data != null)
+        {
+            _integridad = respuesta.Data;
+        }
+        else
+        {
+            Snackbar.Add(string.IsNullOrWhiteSpace(respuesta.Message)
+                ? "No se pudo verificar la integridad." : respuesta.Message, Severity.Error);
+        }
+    }
+
+    // copia completa y legible de la inspección firmada.
+    private async Task DescargarRegistroAsync()
+    {
+        if (_descargando) return;
+
+        _descargando = true;
+        var respuesta = await Http.DescargarRegistroInspeccionAsync(IdInspeccion);
+        _descargando = false;
+
+        if (!respuesta.Success)
+        {
+            Snackbar.Add(string.IsNullOrWhiteSpace(respuesta.Message)
+                ? "No se pudo descargar el registro." : respuesta.Message, Severity.Error);
+        }
+    }
+
+    // Manifestación de la firma : nombre, fecha/hora (Colombia, UTC−5)
+    // y significado, tal como estaban al momento de firmar. Null si la inspección es anterior a
+    // la Fase 4 y no tiene FirmaNombre/FirmaSignificado todavía.
+    private static string? ManifestacionFirma(InspeccionResultadoDto r)
+    {
+        if (string.IsNullOrWhiteSpace(r.FirmaNombre) || string.IsNullOrWhiteSpace(r.FirmaSignificado)
+            || r.FechaCierre is not { } cierre)
+        {
+            return null;
+        }
+
+        var horaColombia = cierre.AddHours(-5);
+        return $"Firmado electrónicamente por {r.FirmaNombre} el {horaColombia:dd/MM/yyyy HH:mm} " +
+               $"(hora de Colombia, UTC−5). Significado: {r.FirmaSignificado}";
+    }
+}

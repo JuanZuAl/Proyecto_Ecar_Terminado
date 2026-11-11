@@ -1,0 +1,349 @@
+@page "/evidencias"
+@inject HttpClientService HttpClientService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthorizationService AuthorizationService
+
+@* El API decide qué fotos llegan: el Administrador, el Supervisor y el Estándar ven las de todas las
+   inspecciones, y el Operador, las de las suyas. Retirar tiene sus propias reglas (PuedeRetirar). *@
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5">Evidencias</MudText>
+                <MudText Typo="Typo.body2">Fotografías cargadas durante la ejecución de inspecciones</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudGrid Class="mb-2">
+                <MudItem xs="12" sm="9">
+                    <MudTextField T="string" Label="Buscar por equipo o usuario" @bind-Value="searchText" Variant="Variant.Outlined"
+                        Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true"
+                        OnKeyUp="OnSearchKeyUp" />
+                </MudItem>
+                <MudItem xs="12" sm="3" Class="d-flex align-center justify-end">
+                    <MudToggleGroup T="string" @bind-Value="vistaActual" Color="Color.Primary" Size="Size.Small">
+                        <MudToggleItem Value="@("galeria")" Text="Galería" />
+                        <MudToggleItem Value="@("tabla")" Text="Tabla" />
+                    </MudToggleGroup>
+                </MudItem>
+            </MudGrid>
+
+            @if (isLoading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="my-4" />
+            }
+            else if (evidencias != null && evidencias.Any())
+            {
+                @if (vistaActual == "galeria")
+                {
+                    <MudGrid>
+                        @foreach (var evidencia in evidencias)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Outlined="true">
+                                    @if (miniaturas.TryGetValue(evidencia.IdEvidencia, out var src) && src != null)
+                                    {
+                                        <button type="button" class="miniatura-ampliable" title="Ver en grande"
+                                                @onclick="@(() => VisorImagenDialog.AbrirAsync(DialogService, src, evidencia.NombreOriginal))">
+                                            <MudImage Src="@src" Height="180" ObjectFit="ObjectFit.Cover" Class="mud-width-full" />
+                                        </button>
+                                    }
+                                    else if (miniaturas.ContainsKey(evidencia.IdEvidencia))
+                                    {
+                                        <EvidenciaNoDisponible Alto="180px" />
+                                    }
+                                    else
+                                    {
+                                        <MudSkeleton Height="180px" />
+                                    }
+                                    <MudCardContent>
+                                        <MudText Typo="Typo.subtitle2">@evidencia.NombreEquipo</MudText>
+                                        <MudText Typo="Typo.body2" Class="texto-partible">@evidencia.NombreOriginal</MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                            @FormatearTamano(evidencia.TamanoBytes) · @evidencia.TipoContenido
+                                        </MudText>
+                                        <MudText Typo="Typo.caption">
+                                            Inspección #@evidencia.IdInspeccion · @evidencia.UsuarioCarga · @evidencia.FechaCarga.ToLocalTime().ToString("dd/MM/yyyy")
+                                        </MudText>
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mt-1 ml-0"
+                                            Color="@(EsDeInspeccionCerrada(evidencia) ? Color.Success : Color.Warning)"
+                                            Text="@(EsDeInspeccionCerrada(evidencia) ? "Inspección cerrada" : "Inspección en curso")" />
+                                        @if (evidencia.Retirada)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mt-1 ml-1"
+                                                Color="Color.Default" Text="Retirada" title="@MotivoRetiro(evidencia)" />
+                                        }
+                                    </MudCardContent>
+                                    @if (PuedeRetirar(evidencia))
+                                    {
+                                        <MudCardActions>
+                                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
+                                                StartIcon="@Icons.Material.Filled.RemoveCircleOutline" OnClick="() => RetirarEvidencia(evidencia)">
+                                                Retirar
+                                            </MudButton>
+                                        </MudCardActions>
+                                    }
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+                else
+                {
+                    <MudTable Items="evidencias" Hover="true" Striped="true" Elevation="0" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>ID</MudTh>
+                            <MudTh>Vista previa</MudTh>
+                            <MudTh>Archivo</MudTh>
+                            <MudTh>Equipo</MudTh>
+                            <MudTh>Inspección</MudTh>
+                            <MudTh>Subido por</MudTh>
+                            <MudTh>Fecha de carga</MudTh>
+                            <MudTh Class="col-acciones">Acciones</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="ID">@context.IdEvidencia</MudTd>
+                            <MudTd DataLabel="Vista previa">
+                                <MudAvatar Square="true" Size="Size.Medium">
+                                    @if (miniaturas.TryGetValue(context.IdEvidencia, out var src) && src != null)
+                                    {
+                                        <button type="button" class="miniatura-ampliable" title="Ver en grande"
+                                                @onclick="@(() => VisorImagenDialog.AbrirAsync(DialogService, src, context.NombreOriginal))">
+                                            <MudImage Src="@src" ObjectFit="ObjectFit.Cover" />
+                                        </button>
+                                    }
+                                    else if (miniaturas.ContainsKey(context.IdEvidencia))
+                                    {
+                                        <EvidenciaNoDisponible Compacta="true" />
+                                    }
+                                    else
+                                    {
+                                        <MudSkeleton />
+                                    }
+                                </MudAvatar>
+                            </MudTd>
+                            <MudTd DataLabel="Archivo">
+                                <MudText Typo="Typo.body2" Class="texto-partible">@context.NombreOriginal</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    @FormatearTamano(context.TamanoBytes) · @context.TipoContenido
+                                </MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Equipo">@context.NombreEquipo</MudTd>
+                            <MudTd DataLabel="Inspección">#@context.IdInspeccion</MudTd>
+                            <MudTd DataLabel="Subido por">@context.UsuarioCarga</MudTd>
+                            <MudTd DataLabel="Fecha de carga">@context.FechaCarga.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+                            <MudTd DataLabel="Acciones" Class="col-acciones">
+                                @if (context.Retirada)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                                        Text="Retirada" title="@MotivoRetiro(context)" />
+                                }
+                                else if (EsDeInspeccionCerrada(context))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" Text="Inspección cerrada" />
+                                }
+                                else if (PuedeRetirar(context))
+                                {
+                                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
+                                        StartIcon="@Icons.Material.Filled.RemoveCircleOutline" OnClick="() => RetirarEvidencia(context)" Class="action-button">
+                                        Retirar
+                                    </MudButton>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                        Color="@FormatoEstados.ColorInspeccion(context.EstadoInspeccion)"
+                                        Text="@InspeccionEstados.Texto(context.EstadoInspeccion)" />
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+
+                <MudPagination Class="mt-4" Count="@totalPages" Selected="@currentPage"
+                    SelectedChanged="HandlePageChange" />
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Class="my-4">
+                    No hay evidencias para mostrar
+                </MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<EvidenciaDto>? evidencias;
+    private string searchText = string.Empty;
+    private string vistaActual = "galeria";
+    private int currentPage = 1;
+    private int pageSize = 12;
+    private int totalPages = 1;
+    // true hasta la primera respuesta: con false, el primer render mostraba «No hay … para mostrar»
+    // antes de que llegaran los datos (Fase 5, F-02).
+    private bool isLoading = true;
+
+    private bool esAdmin;
+    private bool ejecutaInspecciones;
+    private long? idUsuario;
+
+    /// <summary>Caché de miniaturas ya descargadas, por IdEvidencia, para no repetir la llamada al API en cada render.</summary>
+    private readonly Dictionary<long, string?> miniaturas = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var roles = await AuthorizationService.GetUserRolesAsync();
+        esAdmin = roles.Contains(RolesSistema.Administrador);
+        ejecutaInspecciones = roles.Contains(RolesSistema.Operador) || roles.Contains(RolesSistema.Estandar);
+        idUsuario = long.TryParse(await AuthorizationService.GetUserIdAsync(), out var id) ? id : null;
+
+        await LoadEvidenciasAsync();
+    }
+
+    private async Task LoadEvidenciasAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            var result = await HttpClientService.GetEvidenciasAsync(currentPage, pageSize, searchText);
+
+            if (result != null && result.Success && result.Data != null)
+            {
+                evidencias = result.Data.Data ?? new List<EvidenciaDto>();
+                totalPages = result.Data.TotalPages;
+            }
+            else
+            {
+                Snackbar.Add(result?.Message ?? "Error al cargar evidencias", Severity.Error);
+                evidencias = new List<EvidenciaDto>();
+                totalPages = 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
+            evidencias = new List<EvidenciaDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+        await CargarMiniaturasFaltantesAsync();
+    }
+
+    private async Task CargarMiniaturasFaltantesAsync()
+    {
+        var faltantes = (evidencias ?? new List<EvidenciaDto>())
+            .Where(e => !miniaturas.ContainsKey(e.IdEvidencia))
+            .ToList();
+
+        foreach (var evidencia in faltantes)
+        {
+            miniaturas[evidencia.IdEvidencia] = await HttpClientService.GetEvidenciaImageDataUrlAsync(evidencia.IdEvidencia, evidencia.TipoContenido);
+        }
+    }
+
+    // Regla 6 del SRS: la evidencia de una inspección firmada no se borra. El servidor ya
+    // responde 409; la pantalla no ofrece lo que el servidor va a rechazar.
+    private static bool EsDeInspeccionCerrada(EvidenciaDto evidencia) =>
+        InspeccionEstados.EstaFirmada(evidencia.EstadoInspeccion);
+
+    // Las mismas reglas que el API: solo en una inspección en curso, y el Administrador o quien subió
+    // la foto o ejecuta la inspección. El Estándar ve las fotos de otros, pero no las retira, y el
+    // Supervisor solo consulta.
+    private bool PuedeRetirar(EvidenciaDto evidencia) =>
+        !evidencia.Retirada && evidencia.EstadoInspeccion == InspeccionEstados.EnCurso
+        && (esAdmin || (ejecutaInspecciones
+            && (evidencia.IdUsuarioCarga == idUsuario || evidencia.IdUsuarioInspeccion == idUsuario)));
+
+    private static string FormatearTamano(long bytes)
+    {
+        if (bytes >= 1024 * 1024)
+        {
+            return $"{bytes / (1024.0 * 1024.0):0.0} MB";
+        }
+
+        if (bytes >= 1024)
+        {
+            return $"{bytes / 1024.0:0} KB";
+        }
+
+        return $"{bytes} B";
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            currentPage = 1;
+            await LoadEvidenciasAsync();
+        }
+    }
+
+    private async Task HandlePageChange(int newPage)
+    {
+        currentPage = newPage;
+        await LoadEvidenciasAsync();
+    }
+
+    // Fase 4: ninguna evidencia se borra; se retira con motivo y el archivo se conserva.
+    private async Task RetirarEvidencia(EvidenciaDto evidencia)
+    {
+        var motivo = await MotivoDialog.PedirAsync(DialogService, "Retirar evidencia",
+            $"La fotografía #{evidencia.IdEvidencia} dejará de verse en la inspección, pero el archivo se conserva.",
+            "Retirar", Color.Error);
+
+        if (motivo is null)
+        {
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var result = await HttpClientService.RetirarEvidenciaAsync(evidencia.IdEvidencia, motivo);
+
+            if (result.Success)
+            {
+                Snackbar.Add("Evidencia retirada", Severity.Success);
+                await LoadEvidenciasAsync();
+            }
+            else
+            {
+                Snackbar.Add(result.Message, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string MotivoRetiro(EvidenciaDto evidencia) =>
+        string.IsNullOrWhiteSpace(evidencia.MotivoRetiro)
+            ? "Retirada"
+            : $"Retirada por {evidencia.UsuarioRetiro}: {evidencia.MotivoRetiro}";
+}
+
+<style>
+.action-button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+.action-button:hover {
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+</style>

@@ -1,0 +1,83 @@
+@page "/creditos"
+@* Alias: dentro de esta página, «Creditos» es la propia página. *@
+@using Equipo = ECAR.Shared.Creditos
+
+@* Quiénes desarrollaron el sistema, con su perfil de GitHub (ECAR.Shared/Creditos, la misma lista del README).
+   Para todos los roles; los enlaces abren GitHub en otra pestaña. *@
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5">Créditos</MudText>
+                <MudText Typo="Typo.body2">Sistema de Gestión de Equipos e Inspecciones · Laboratorios ECAR S.A.</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudText Typo="Typo.body1" Class="mb-2">Desarrollado por:</MudText>
+
+            @foreach (var (titulo, equipo) in Grupos)
+            {
+                <MudText Typo="Typo.h6" Class="mt-4 mb-3">@titulo</MudText>
+                <MudGrid Spacing="3">
+                    @foreach (var integrante in equipo)
+                    {
+                        <MudItem xs="12" sm="6" lg="3">
+                            <MudPaper Outlined="true" Class="pa-4 tarjeta-credito">
+                                <MudText Typo="Typo.subtitle1" Class="nombre-credito">@integrante.Nombre</MudText>
+                                <MudText Typo="Typo.caption" Class="codigo-credito">@integrante.Codigo</MudText>
+                                <MudText Typo="Typo.body2" Class="mt-2 mb-3 rol-credito">@integrante.Rol</MudText>
+                                <MudLink Href="@integrante.Perfil" Target="_blank" rel="noopener noreferrer"
+                                         Class="enlace-github texto-partible" title="@integrante.Perfil">
+                                    <MudIcon Icon="@Icons.Custom.Brands.GitHub" Size="Size.Small" Class="mr-1" />
+                                    @($"@{integrante.Usuario}")
+                                </MudLink>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+
+            <MudText Typo="Typo.body2" Class="mt-6">
+                Repositorio de desarrollo:
+                <MudLink Href="@Equipo.RepositorioDesarrollo" Target="_blank" rel="noopener noreferrer" Class="texto-partible">
+                    github.com/carlostamayo1295/Proyecto_ECAR
+                </MudLink>
+            </MudText>
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+<style>
+    .tarjeta-credito {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .nombre-credito {
+        font-weight: 600;
+    }
+
+    .codigo-credito {
+        color: var(--mud-palette-text-secondary);
+        letter-spacing: 0.04em;
+    }
+
+    .rol-credito {
+        flex: 1 1 auto;
+    }
+
+    .enlace-github {
+        display: inline-flex;
+        align-items: center;
+    }
+</style>
+
+@code {
+    private static readonly (string Titulo, IReadOnlyList<Equipo.Integrante> Equipo)[] Grupos =
+    [
+        ("Backend", Equipo.Backend),
+        ("Frontend", Equipo.Frontend),
+    ];
+}

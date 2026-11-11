@@ -1,0 +1,21 @@
+# Raíz del repositorio. «Cliente PROD» y «Cliente TEST» tienen además su propio .gitignore (compilados, Rider,
+# appsettings por ambiente, evidencias y correos locales).
+
+# Editores
+.idea/
+.vs/
+.vscode/
+*.user
+
+# Archivos del sistema
+Thumbs.db
+.DS_Store
+
+# Secretos: nunca se suben, aunque alguien los deje aquí por error
+secrets.json
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.*
