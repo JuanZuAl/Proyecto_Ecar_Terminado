@@ -259,7 +259,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error al iniciar sesión: {ex.Message}";
+            errorMessage = MensajesError.Texto(ex);
         }
         finally
         {

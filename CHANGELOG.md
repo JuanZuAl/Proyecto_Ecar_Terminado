@@ -5,6 +5,22 @@ horaria de Colombia.
 
 ## [Sin publicar] — Fase 5
 
+### Corregido (pedido del 11/11/2026)
+
+- **Mensajes en español**: los errores de arranque del API que estaban en inglés ahora están en español y dicen dónde
+  se configura cada dato: `ConnectionStrings:ECARConnection no está configurada`, `JWT:Secret no está configurado`
+  (también cuando viene vacío, como en `appsettings.json`), `JWT:Secret debe tener al menos 32 caracteres` y
+  `ECARAuthentication:Mode no admite el valor '…'`. «No tienes permiso…» pasa a «No tiene permiso…», como el resto del
+  sistema.
+- **Errores en pantalla**: ninguna pantalla muestra ya el texto crudo de una excepción, que llegaba en inglés desde .NET
+  o desde el navegador (por ejemplo «TypeError: Failed to fetch»). `ECAR.Client/Services/MensajesError.cs` da una
+  explicación en español según el tipo de error (sin conexión, tiempo agotado, respuesta ilegible o inesperado) y, en el
+  lector de QR, la causa por la que no se abrió la cámara. El detalle técnico queda en la consola del navegador.
+- **Trigger de la auditoría en los scripts de EF**: en `Fase4HallazgosAuditoria`, `CREATE TRIGGER` va dentro de
+  `EXEC(N'…')`, porque debe ser la primera instrucción de su lote y `dotnet ef migrations script` lo dejaba en medio
+  de uno. No cambia las bases ya creadas. Los scripts completos de este repositorio todavía fallan antes, en
+  `Fase3BaseInspecciones` (agrega una columna y la usa en el mismo lote); `Migrate` al arrancar no se ve afectado.
+
 ### Cambiado (pedido del 09/11/2026, rama `integracion-fase-final`)
 
 - **Logo de ECAR en los PDF**: todos los PDF que genera el sistema (reportes, exportación de la auditoría, tablero y

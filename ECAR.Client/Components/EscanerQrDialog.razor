@@ -75,8 +75,7 @@
         }
         catch (JSException ex)
         {
-            error = "No se pudo abrir la cámara. Revise que el navegador tenga permiso para usarla, " +
-                    "o escanee la etiqueta con la cámara del teléfono. Detalle: " + ex.Message;
+            error = MensajesError.Camara(ex);
             StateHasChanged();
         }
     }

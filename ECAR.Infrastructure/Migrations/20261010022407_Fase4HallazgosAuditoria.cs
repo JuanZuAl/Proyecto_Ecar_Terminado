@@ -420,14 +420,16 @@ DEALLOCATE filas;");
 
             // Parte 11 §11.10(e): las filas de auditoría no se pueden modificar ni borrar, tampoco
             // por SQL directo. Va al final: el sellado de arriba necesita hacer UPDATE.
+            // Va dentro de EXEC porque CREATE TRIGGER debe ser la primera instrucción de su lote, y los scripts de
+            // «dotnet ef migrations script» (también el idempotente, dentro de un IF) lo dejarían en medio de uno.
             migrationBuilder.Sql($@"
-CREATE TRIGGER [dbo].[{Trigger}] ON [dbo].[Auditoria]
+EXEC(N'CREATE TRIGGER [dbo].[{Trigger}] ON [dbo].[Auditoria]
 INSTEAD OF UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
-    THROW 51000, N'La auditoría solo admite inserciones: sus filas no se pueden modificar ni borrar.', 1;
-END");
+    THROW 51000, N''La auditoría solo admite inserciones: sus filas no se pueden modificar ni borrar.'', 1;
+END');");
         }
 
         /// <inheritdoc />

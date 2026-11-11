@@ -143,7 +143,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             checklists = new List<ChecklistDto>();
         }
         finally
@@ -238,7 +238,7 @@
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+                Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             }
             finally
             {

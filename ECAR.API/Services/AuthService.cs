@@ -105,7 +105,7 @@ public class AuthService : IAuthService
         try
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var jwtSecret = _configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
+            var jwtSecret = _configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT:Secret no está configurado (user-secrets o variable de entorno JWT__Secret)");
             var key = Encoding.UTF8.GetBytes(jwtSecret);
 
             tokenHandler.ValidateToken(token, new TokenValidationParameters
@@ -205,7 +205,7 @@ public class AuthService : IAuthService
 
     private string GenerateJwtToken(Usuario usuario, List<string> roles)
     {
-        var jwtSecret = _configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
+        var jwtSecret = _configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT:Secret no está configurado (user-secrets o variable de entorno JWT__Secret)");
         var key = Encoding.UTF8.GetBytes(jwtSecret);
         var claims = new List<Claim>
         {

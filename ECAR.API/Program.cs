@@ -34,7 +34,8 @@ builder.Services.AddControllers()
 var conn = builder.Configuration.GetConnectionString("ECARConnection");
 if (string.IsNullOrWhiteSpace(conn))
 {
-    throw new InvalidOperationException("ConnectionStrings:ECARConnection is not configured");
+    throw new InvalidOperationException(
+        "ConnectionStrings:ECARConnection no está configurada (user-secrets o variable de entorno ConnectionStrings__ECARConnection)");
 }
 
 // Configurar Entity Framework
@@ -45,10 +46,15 @@ builder.Services.AddDbContext<ECARDbContext>(options =>
     options.UseSqlServer(conn, sql => sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
 // Configurar la autenticación JWT
-var jwtSecret = builder.Configuration["JWT:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
+var jwtSecret = builder.Configuration["JWT:Secret"];
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    throw new InvalidOperationException("JWT:Secret no está configurado (user-secrets o variable de entorno JWT__Secret)");
+}
+
 if (jwtSecret.Length < 32)
 {
-    throw new InvalidOperationException("JWT:Secret must contain at least 32 characters");
+    throw new InvalidOperationException("JWT:Secret debe tener al menos 32 caracteres");
 }
 var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? "ECAR-Auditoria";
 var jwtAudience = builder.Configuration["JWT:Audience"] ?? "ECAR-Users";

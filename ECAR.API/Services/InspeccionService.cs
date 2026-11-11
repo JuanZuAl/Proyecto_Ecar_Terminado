@@ -32,7 +32,7 @@ public class InspeccionService : IInspeccionService
         // Punto 7: solo quien ejecuta la inspección o el Administrador
         if (!esAdmin && inspeccion.IdUsuario != usuarioId)
         {
-            throw new UnauthorizedAccessException("No tienes permiso para modificar esta inspección.");
+            throw new UnauthorizedAccessException("No tiene permiso para modificar esta inspección.");
         }
 
         // Punto 6: 409 Conflict si la inspección no está 'En curso'
@@ -111,7 +111,7 @@ public class InspeccionService : IInspeccionService
         // El Operador, las de sus inspecciones
         if (!leeTodas && inspeccion.IdUsuario != usuarioId)
         {
-            throw new UnauthorizedAccessException("No tienes permiso para consultar las respuestas de esta inspección.");
+            throw new UnauthorizedAccessException("No tiene permiso para consultar las respuestas de esta inspección.");
         }
 
         return await _context.RespuestasInspeccion

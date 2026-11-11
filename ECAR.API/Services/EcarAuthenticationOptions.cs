@@ -15,7 +15,7 @@ public sealed class EcarAuthenticationOptions
         return Enum.TryParse<EcarAuthenticationMode>(Mode, ignoreCase: true, out var mode)
             ? mode
             : throw new InvalidOperationException(
-                $"Unsupported authentication mode '{Mode}'. Use Local, ActiveDirectory or Hybrid.");
+                $"ECARAuthentication:Mode no admite el valor '{Mode}'. Use Local, ActiveDirectory o Hybrid.");
     }
 }
 

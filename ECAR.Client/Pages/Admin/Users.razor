@@ -172,7 +172,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             usuarios = new List<UsuarioDto>();
             availableRoles = new List<RolDto>();
         }
@@ -271,7 +271,7 @@
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+                Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             }
             finally
             {

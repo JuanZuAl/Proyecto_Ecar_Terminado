@@ -144,7 +144,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             asignaciones = new List<UsuarioRolDto>();
         }
         finally
@@ -226,7 +226,7 @@
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+                Snackbar.Add(MensajesError.Texto(ex), Severity.Error);
             }
             finally
             {
