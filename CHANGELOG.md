@@ -16,10 +16,15 @@ horaria de Colombia.
   o desde el navegador (por ejemplo «TypeError: Failed to fetch»). `ECAR.Client/Services/MensajesError.cs` da una
   explicación en español según el tipo de error (sin conexión, tiempo agotado, respuesta ilegible o inesperado) y, en el
   lector de QR, la causa por la que no se abrió la cámara. El detalle técnico queda en la consola del navegador.
-- **Trigger de la auditoría en los scripts de EF**: en `Fase4HallazgosAuditoria`, `CREATE TRIGGER` va dentro de
-  `EXEC(N'…')`, porque debe ser la primera instrucción de su lote y `dotnet ef migrations script` lo dejaba en medio
-  de uno. No cambia las bases ya creadas. Los scripts completos de este repositorio todavía fallan antes, en
-  `Fase3BaseInspecciones` (agrega una columna y la usa en el mismo lote); `Migrate` al arrancar no se ve afectado.
+- **Scripts de EF**: `dotnet ef migrations script`, el normal y el idempotente, fallaba. Deja cada migración en un
+  solo lote y SQL Server lo compila entero antes de ejecutarlo, así que el SQL escrito a mano que usaba una columna
+  agregada en la misma migración daba «Invalid column name 'IdChecklist'» (`Fase3BaseInspecciones`), y `CREATE TRIGGER`
+  (`Fase4HallazgosAuditoria`) no se admitía en medio del lote. Ahora todo ese SQL, en `AgregarTokenQrEquipo`,
+  `Fase3BaseInspecciones` y `Fase4HallazgosAuditoria` (Up y Down), pasa por `migrationBuilder.SqlDiferido`
+  (`ECAR.Infrastructure/Migrations/MigracionesSql.cs`), que lo ejecuta con `EXEC`. Los dos scripts corren sin errores
+  sobre una base vacía, repetidos, sobre una base creada por EF y al actualizar una base con datos desde una migración
+  intermedia, y dejan el mismo esquema y los mismos datos que `Migrate`. No cambia las bases ya creadas. Las migraciones
+  nuevas con SQL a mano deben usar `SqlDiferido`.
 
 ### Cambiado (pedido del 09/11/2026, rama `integracion-fase-final`)
 

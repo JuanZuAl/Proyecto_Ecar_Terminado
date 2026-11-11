@@ -53,7 +53,7 @@ namespace ECAR.Infrastructure.Migrations
                 defaultValue: "");
 
             // Un sello distinto por usuario, como el que pone Usuario.NuevoSecurityStamp().
-            migrationBuilder.Sql(
+            migrationBuilder.SqlDiferido(
                 "UPDATE [Usuarios] SET [SecurityStamp] = LOWER(REPLACE(CONVERT(nvarchar(36), NEWID()), N'-', N''));");
 
             migrationBuilder.AddColumn<DateTime>(
@@ -103,7 +103,7 @@ namespace ECAR.Infrastructure.Migrations
                 nullable: true);
 
             // Los hallazgos sin estado pasan a Abierto (§3.1).
-            migrationBuilder.Sql("UPDATE [Hallazgos] SET [Estado] = N'Abierto' WHERE [Estado] IS NULL;");
+            migrationBuilder.SqlDiferido("UPDATE [Hallazgos] SET [Estado] = N'Abierto' WHERE [Estado] IS NULL;");
 
             migrationBuilder.AlterColumn<string>(
                 name: "Estado",
@@ -155,7 +155,7 @@ namespace ECAR.Infrastructure.Migrations
                 type: "bigint",
                 nullable: true);
 
-            migrationBuilder.Sql(
+            migrationBuilder.SqlDiferido(
                 "UPDATE h SET h.[IdUsuarioRegistro] = i.[IdUsuario] " +
                 "FROM [Hallazgos] h INNER JOIN [Inspecciones] i ON i.[IdInspeccion] = h.[IdInspeccion];");
 
@@ -266,7 +266,7 @@ namespace ECAR.Infrastructure.Migrations
             // CadenaAuditoria: SHA-256 en UTF-16LE (HASHBYTES sobre nvarchar) de
             // HashAnterior|Tabla|RegistroId|Accion|ValorAnterior|ValorNuevo|IdUsuario|FechaHora|Motivo.
             // Así la verificación recorre la tabla entera con una sola regla.
-            migrationBuilder.Sql(@"
+            migrationBuilder.SqlDiferido(@"
 DECLARE @id bigint, @anterior char(64) = NULL, @hash char(64);
 DECLARE filas CURSOR LOCAL FAST_FORWARD FOR SELECT [IdAuditoria] FROM [Auditoria] ORDER BY [IdAuditoria];
 OPEN filas;
@@ -420,22 +420,21 @@ DEALLOCATE filas;");
 
             // Parte 11 §11.10(e): las filas de auditoría no se pueden modificar ni borrar, tampoco
             // por SQL directo. Va al final: el sellado de arriba necesita hacer UPDATE.
-            // Va dentro de EXEC porque CREATE TRIGGER debe ser la primera instrucción de su lote, y los scripts de
-            // «dotnet ef migrations script» (también el idempotente, dentro de un IF) lo dejarían en medio de uno.
-            migrationBuilder.Sql($@"
-EXEC(N'CREATE TRIGGER [dbo].[{Trigger}] ON [dbo].[Auditoria]
+            // CREATE TRIGGER debe ser la primera instrucción de su lote: SqlDiferido lo ejecuta con EXEC.
+            migrationBuilder.SqlDiferido($@"
+CREATE TRIGGER [dbo].[{Trigger}] ON [dbo].[Auditoria]
 INSTEAD OF UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
-    THROW 51000, N''La auditoría solo admite inserciones: sus filas no se pueden modificar ni borrar.'', 1;
-END');");
+    THROW 51000, N'La auditoría solo admite inserciones: sus filas no se pueden modificar ni borrar.', 1;
+END");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql($"DROP TRIGGER IF EXISTS [dbo].[{Trigger}];");
+            migrationBuilder.SqlDiferido($"DROP TRIGGER IF EXISTS [dbo].[{Trigger}];");
 
             migrationBuilder.DropForeignKey(
                 name: "FK_Auditoria_Usuarios_IdUsuario",
